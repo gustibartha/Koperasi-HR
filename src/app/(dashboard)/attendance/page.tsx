@@ -1,0 +1,436 @@
+"use client"
+
+import * as React from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { 
+  Clock, 
+  MapPin, 
+  Fingerprint, 
+  LogIn, 
+  LogOut, 
+  AlertCircle, 
+  CalendarCheck,
+  Search,
+  Filter,
+  MapPinned,
+  Camera,
+  X,
+  History,
+  TrendingDown,
+  Loader2
+} from "lucide-react"
+import { clockIn, clockOut, getAllAttendances } from "@/app/actions/attendance"
+import { Input } from "@/components/ui/input"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+// OFFICE COORDINATES
+const OFFICE_LAT = -6.092379417846587;
+const OFFICE_LNG = 106.79142987629392;
+const MAX_RADIUS_METERS = 100;
+
+const DUMMY_EMPLOYEE_ID = "2bb7db5b-c648-44c2-8acf-46ab40cb009d" // Admin
+
+export default function AttendancePage() {
+  const [time, setTime] = React.useState(new Date())
+  const [status, setStatus] = React.useState<"out" | "in">("out")
+  const [locationStatus, setLocationStatus] = React.useState<"checking" | "inside" | "outside" | "error">("checking")
+  const [distance, setDistance] = React.useState<number | null>(null)
+  const [showCamera, setShowCamera] = React.useState(false)
+  const [capturedPhoto, setCapturedPhoto] = React.useState<string | null>(null)
+  const [attendanceList, setAttendanceList] = React.useState<any[]>([])
+  const [isFetching, setIsFetching] = React.useState(true)
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
+  
+  const videoRef = React.useRef<HTMLVideoElement>(null)
+  const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  
+  // Weekly Recap Mock Data
+  const weeklyLateRecap = [
+    { day: "Mon", date: "01 May", count: 3 },
+    { day: "Tue", date: "02 May", count: 5 },
+    { day: "Wed", date: "03 May", count: 2 },
+    { day: "Thu", date: "04 May", count: 4 },
+    { day: "Fri", date: "05 May", count: 1 },
+    { day: "Sat", date: "06 May", count: 0 },
+    { day: "Sun", date: "07 May", count: 0 },
+  ]
+
+  const attendanceHistory = attendanceList.map(l => ({
+    id: l.id,
+    name: l.employeeName || "Unknown",
+    in: l.clockIn ? new Date(l.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-",
+    status: l.isLate ? "Late" : "On Time",
+    lateMinutes: 15 // Mock late minutes
+  }))
+
+  const fetchAttendances = React.useCallback(async () => {
+    setIsFetching(true)
+    const res = await getAllAttendances()
+    if (res.success) {
+      setAttendanceList(res.data || [])
+      // Check if already clocked in today (simple logic for demo)
+      const today = new Date().toLocaleDateString()
+      const todayLog = res.data?.find((l: any) => 
+        new Date(l.clockIn).toLocaleDateString() === today && !l.clockOut
+      )
+      if (todayLog) {
+        setStatus("in")
+        setCurrentAttendanceId(todayLog.id)
+      } else {
+        setStatus("out")
+        setCurrentAttendanceId(null)
+      }
+    }
+    setIsFetching(false)
+  }, [])
+
+  React.useEffect(() => {
+    fetchAttendances()
+  }, [fetchAttendances])
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3;
+    const φ1 = lat1 * Math.PI/180;
+    const φ2 = lat2 * Math.PI/180;
+    const Δφ = (lat2-lat1) * Math.PI/180;
+    const Δλ = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  const checkLocation = React.useCallback(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("error");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const d = calculateDistance(position.coords.latitude, position.coords.longitude, OFFICE_LAT, OFFICE_LNG);
+        setDistance(Math.round(d));
+        setLocationStatus(d <= MAX_RADIUS_METERS ? "inside" : "outside");
+      },
+      () => setLocationStatus("error"),
+      { enableHighAccuracy: true }
+    );
+  }, []);
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000)
+    checkLocation();
+    const locTimer = setInterval(checkLocation, 30000);
+    return () => {
+      clearInterval(timer);
+      clearInterval(locTimer);
+    }
+  }, [checkLocation])
+
+  const startCamera = async () => {
+    setShowCamera(true)
+    setCapturedPhoto(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+      if (videoRef.current) videoRef.current.srcObject = stream
+    } catch (err) { console.error(err) }
+  }
+
+  const capturePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext("2d")
+      if (context) {
+        canvasRef.current.width = videoRef.current.videoWidth
+        canvasRef.current.height = videoRef.current.videoHeight
+        context.drawImage(videoRef.current, 0, 0)
+        setCapturedPhoto(canvasRef.current.toDataURL("image/png"))
+        const stream = videoRef.current.srcObject as MediaStream
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }
+
+  const handleFinalSubmit = async () => {
+    setIsSubmitting(true)
+    if (status === "out") {
+       // Clock In
+       const res = await clockIn(DUMMY_EMPLOYEE_ID, `${OFFICE_LAT},${OFFICE_LNG}`, true)
+       if (res.success) {
+          fetchAttendances()
+       } else {
+          alert(res.message)
+       }
+    } else if (currentAttendanceId) {
+       // Clock Out
+       const res = await clockOut(currentAttendanceId)
+       if (res.success) {
+          fetchAttendances()
+       } else {
+          alert(res.message)
+       }
+    }
+    setIsSubmitting(false)
+    setShowCamera(false)
+  }
+
+  return (
+    <div className="space-y-12 animate-in fade-in duration-700">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3">
+          <h1 className="text-5xl md:text-6xl font-bold tracking-tighter text-foreground font-serif">Attendance</h1>
+          <p className="text-muted-foreground text-xl font-medium">Real-time presence monitoring & weekly analytics.</p>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+           <span className="text-sm font-bold uppercase tracking-[0.3em] text-primary">Shift Operasional</span>
+           <span className="text-2xl font-bold text-foreground font-mono">07:30 - 16:00</span>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid gap-8 md:grid-cols-4">
+        <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 blur-xl -mr-6 -mt-6"></div>
+           <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
+             <CardTitle className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Hadir Hari Ini</CardTitle>
+             <CalendarCheck className="h-5 w-5 text-emerald-500" />
+           </CardHeader>
+           <CardContent>
+             <div className="text-5xl font-bold text-foreground tracking-tighter">42</div>
+           </CardContent>
+        </Card>
+        <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] relative overflow-hidden border-amber-500/20">
+           <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 blur-xl -mr-6 -mt-6"></div>
+           <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
+             <CardTitle className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Telat Hari Ini</CardTitle>
+             <Clock className="h-5 w-5 text-amber-500" />
+           </CardHeader>
+           <CardContent>
+             <div className="text-5xl font-bold text-amber-500 tracking-tighter">04</div>
+           </CardContent>
+        </Card>
+        <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] col-span-2 relative overflow-hidden">
+           <CardHeader className="pb-2">
+             <CardTitle className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
+               <TrendingDown className="h-4 w-4 text-primary" />
+               Rekapan Telat 7 Hari Terakhir
+             </CardTitle>
+           </CardHeader>
+           <CardContent className="flex items-end justify-between h-20 gap-2 px-6">
+              {weeklyLateRecap.map((day, idx) => (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
+                  <div 
+                    className="w-full bg-primary/20 rounded-t-lg group-hover:bg-primary transition-all relative"
+                    style={{ height: `${day.count * 8}px` }}
+                  >
+                    <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">{day.count}</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase">{day.day}</span>
+                </div>
+              ))}
+           </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-12 lg:grid-cols-5">
+        {/* Clock In/Out Section */}
+        <Card className="lg:col-span-2 flex flex-col justify-center items-center p-12 space-y-10 rounded-[3rem] border border-border bg-card shadow-2xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-50"></div>
+          <div className="text-center space-y-4 z-10">
+            <h2 className="text-7xl font-mono font-bold tracking-tighter text-foreground drop-shadow-2xl">
+              {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </h2>
+            <p className="text-xl text-muted-foreground font-bold tracking-widest uppercase">
+              {time.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-8 w-full max-w-sm z-10">
+            <div className="grid grid-cols-2 gap-4 w-full">
+               <div className={`flex flex-col items-center gap-3 p-5 rounded-3xl border transition-all ${
+                  locationStatus === "inside" ? "bg-emerald-500/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30"
+               }`}>
+                  {locationStatus === "inside" ? <MapPin className="h-6 w-6 text-emerald-500" /> : <MapPinned className="h-6 w-6 text-destructive" />}
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${locationStatus === "inside" ? "text-emerald-500" : "text-destructive"}`}>
+                    {locationStatus === "inside" ? "IN RANGE" : locationStatus === "checking" ? "CHECKING..." : "OUT OF RANGE"}
+                  </span>
+               </div>
+               <div className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-accent/20 border border-border">
+                  <Fingerprint className="h-6 w-6 text-primary" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">BIO READY</span>
+               </div>
+            </div>
+
+            {locationStatus === "outside" && (
+              <div className="bg-destructive/10 text-destructive p-4 rounded-2xl flex items-center gap-3 animate-pulse">
+                <AlertCircle className="h-5 w-5 shrink-0" />
+                <p className="text-xs font-bold uppercase tracking-tight text-center">Jarak: {distance}m. Silakan ke area kantor.</p>
+              </div>
+            )}
+
+            <Button
+              size="lg"
+              disabled={locationStatus !== "inside" || isSubmitting}
+              className={`w-full h-24 text-2xl font-bold rounded-[2rem] shadow-2xl transition-all hover:scale-[1.02] ${
+                locationStatus !== "inside" ? "opacity-50 grayscale cursor-not-allowed" :
+                status === "out" ? "bg-primary text-primary-foreground shadow-primary/20" : "bg-destructive text-destructive-foreground shadow-destructive/20"
+              }`}
+              onClick={startCamera}
+            >
+              {isSubmitting ? <Loader2 className="h-8 w-8 animate-spin" /> : status === "out" ? (
+                <> <LogIn className="mr-4 h-8 w-8 stroke-[3]" /> Clock In Now </>
+              ) : (
+                <> <LogOut className="mr-4 h-8 w-8 stroke-[3]" /> Clock Out Now </>
+              )}
+            </Button>
+          </div>
+        </Card>
+
+        {/* Detailed Logs & Weekly Recap */}
+        <div className="lg:col-span-3 flex flex-col gap-8">
+           <Tabs defaultValue="all" className="w-full">
+              <TabsList className="bg-accent/10 border border-border p-1 rounded-2xl h-14 mb-6">
+                 <TabsTrigger value="all" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-card data-[state=active]:text-foreground">Recent Activities</TabsTrigger>
+                 <TabsTrigger value="late" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">Today's Late (04)</TabsTrigger>
+                 <TabsTrigger value="weekly" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Weekly Recap</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="all">
+                 <div className="rounded-[2.5rem] border border-border bg-card shadow-2xl overflow-hidden">
+                    <Table>
+                        <TableBody>
+                           {isFetching ? (
+                              <TableRow>
+                                 <TableCell colSpan={3} className="h-40 text-center">
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                                    <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
+                                 </TableCell>
+                              </TableRow>
+                           ) : attendanceList.length === 0 ? (
+                              <TableRow>
+                                 <TableCell colSpan={3} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada aktivitas.</TableCell>
+                              </TableRow>
+                           ) : attendanceList.map(log => (
+                              <TableRow key={log.id} className="h-24 border-border hover:bg-accent/5 transition-all">
+                                 <TableCell className="pl-8">
+                                    <div className="flex flex-col">
+                                       <span className="font-bold text-lg">{log.employeeName || "Unknown"}</span>
+                                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                          {log.clockIn ? new Date(log.clockIn).toLocaleDateString() : "-"}
+                                       </span>
+                                    </div>
+                                 </TableCell>
+                                 <TableCell className="font-mono font-bold">
+                                    {log.clockIn ? new Date(log.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"} 
+                                    {log.clockOut ? ` - ${new Date(log.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
+                                 </TableCell>
+                                 <TableCell>
+                                    <Badge className={`px-4 py-1 rounded-full font-bold uppercase text-[9px] tracking-widest ${
+                                       "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                    }`}>
+                                       {log.clockOut ? "Selesai" : "Aktif"}
+                                    </Badge>
+                                 </TableCell>
+                              </TableRow>
+                           ))}
+                        </TableBody>
+                    </Table>
+                 </div>
+              </TabsContent>
+
+              <TabsContent value="late">
+                 <div className="rounded-[2.5rem] border border-border bg-card shadow-2xl overflow-hidden">
+                    <Table>
+                       <TableBody>
+                          {attendanceHistory.filter(l => l.status === "Late").map(log => (
+                             <TableRow key={log.id} className="h-24 border-border hover:bg-amber-500/5 transition-all">
+                                <TableCell className="pl-8">
+                                   <div className="flex flex-col">
+                                      <span className="font-bold text-lg">{log.name}</span>
+                                      <span className="text-[10px] font-bold text-amber-500/80 uppercase tracking-widest">Telat {log.lateMinutes} Menit</span>
+                                   </div>
+                                </TableCell>
+                                <TableCell className="font-mono font-bold text-amber-500">{log.in}</TableCell>
+                                <TableCell className="text-right pr-8">
+                                   <Button variant="ghost" size="sm" className="text-xs font-bold text-muted-foreground hover:text-foreground">View Photo</Button>
+                                </TableCell>
+                             </TableRow>
+                          ))}
+                       </TableBody>
+                    </Table>
+                 </div>
+              </TabsContent>
+
+              <TabsContent value="weekly">
+                 <Card className="rounded-[2.5rem] border border-border bg-card shadow-2xl p-8">
+                    <div className="space-y-6">
+                       {weeklyLateRecap.map((day, idx) => (
+                          <div key={idx} className="flex items-center justify-between group">
+                             <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-xl bg-accent/20 flex items-center justify-center font-bold text-xs uppercase text-muted-foreground">
+                                   {day.day}
+                                </div>
+                                <div>
+                                   <p className="font-bold text-foreground leading-none">{day.date}</p>
+                                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Total Keterlambatan</p>
+                                </div>
+                             </div>
+                             <div className="flex items-center gap-6">
+                                <div className="h-2 w-32 bg-accent/20 rounded-full overflow-hidden">
+                                   <div 
+                                      className="h-full bg-amber-500 rounded-full transition-all duration-1000"
+                                      style={{ width: `${(day.count / 10) * 100}%` }}
+                                   ></div>
+                                </div>
+                                <span className="text-xl font-bold text-amber-500 min-w-[30px] text-right">{day.count}</span>
+                             </div>
+                          </div>
+                       ))}
+                    </div>
+                 </Card>
+              </TabsContent>
+           </Tabs>
+        </div>
+      </div>
+
+      {/* Camera Dialog Omitted but preserved logic ... */}
+      <Dialog open={showCamera} onOpenChange={setShowCamera}>
+        <DialogContent className="sm:max-w-[500px] bg-popover border-border rounded-[2.5rem] p-8 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-center">Face Verification</DialogTitle>
+          </DialogHeader>
+          <div className="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl">
+            {!capturedPhoto ? (
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover scale-x-[-1]" />
+            ) : (
+              <img src={capturedPhoto} alt="Captured" className="w-full h-full object-cover scale-x-[-1]" />
+            )}
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+          <DialogFooter className="sm:justify-center gap-4 pt-6">
+            {!capturedPhoto ? (
+              <Button onClick={capturePhoto} size="lg" className="h-16 w-full rounded-2xl bg-primary text-white font-bold">Ambil Foto</Button>
+            ) : (
+              <Button onClick={handleFinalSubmit} className="h-16 w-full rounded-2xl bg-emerald-600 text-white font-bold">Kirim Absensi</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
