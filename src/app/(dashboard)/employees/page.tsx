@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -165,9 +165,9 @@ export default function EmployeesPage() {
                          <p className="text-sm text-muted-foreground">Download our pre-formatted file.</p>
                       </div>
                    </div>
-                   <Button variant="secondary" asChild className="font-bold rounded-xl h-12 px-6">
-                      <a href="/employee_template.xlsx" download>Download</a>
-                   </Button>
+                   <a href="/employee_template.xlsx" download className={buttonVariants({ variant: "secondary", className: "font-bold rounded-xl h-12 px-6" })}>
+                      Download
+                   </a>
                 </div>
               </div>
               <DialogFooter className="gap-4">

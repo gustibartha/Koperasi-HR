@@ -36,7 +36,8 @@ export async function updateLoanStatus(loanId: string, status: "lunas" | "belum_
 export async function deductLoan(loanId: string, deductionAmount: number) {
     // Dipanggil saat penggajian bulanan
     try {
-        const loan = await db.select().from(loans).where(eq(loans.id, loanId)).get();
+        const loanRecords = await db.select().from(loans).where(eq(loans.id, loanId)).limit(1);
+        const loan = loanRecords[0];
         if(!loan) throw new Error("Loan not found");
 
         const newRemaining = loan.remainingAmount - deductionAmount;
