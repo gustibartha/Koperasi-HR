@@ -24,12 +24,7 @@ export default function Home() {
           </div>
         </div>
         
-        <nav className="hidden md:flex items-center gap-10 text-sm font-semibold text-muted-foreground">
-          <Link className="hover:text-primary transition-colors" href="#">Fitur</Link>
-          <Link className="hover:text-primary transition-colors" href="#">Cara Kerja</Link>
-          <Link className="hover:text-primary transition-colors" href="#">Peran</Link>
-          <Link className="hover:text-primary transition-colors" href="#">Teknologi</Link>
-        </nav>
+        {/* Navigation menu removed temporarily as requested */}
 
         <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-background px-8 text-sm font-bold text-foreground transition-colors hover:bg-accent">
           Masuk
