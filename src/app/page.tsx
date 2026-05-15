@@ -52,12 +52,9 @@ export default function Home() {
                 </p>
                 
                 <div className="flex flex-wrap gap-5 pt-6">
-                  <Link href="/dashboard" className="inline-flex h-14 items-center justify-center rounded-xl bg-primary px-10 text-lg font-bold text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.02]">
+                  <Link href="/login" className="inline-flex h-14 items-center justify-center rounded-xl bg-primary px-10 text-lg font-bold text-primary-foreground shadow-xl shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.02]">
                     Mulai Sekarang
                   </Link>
-                  <Button variant="outline" size="lg" nativeButton={false} className="border-border bg-transparent hover:bg-accent text-foreground px-10 h-14 text-lg font-bold rounded-xl" render={<Link href="#" />}>
-                    Lihat Fitur →
-                  </Button>
                 </div>
               </div>
 
