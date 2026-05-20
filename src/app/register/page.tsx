@@ -14,8 +14,8 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, Building2 } from "lucide-react"
-import { getCompanies } from "@/app/actions/company"
+import { AlertCircle, Building2, User } from "lucide-react"
+import { getCompanies } from "@/app/actions/formasi"
 import {
   Select,
   SelectContent,
@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter()
+  const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
+  const [confirmPassword, setConfirmPassword] = React.useState("")
   const [error, setError] = React.useState("")
   const [loading, setLoading] = React.useState(false)
   const [companies, setCompanies] = React.useState<any[]>([])
@@ -54,41 +56,34 @@ export default function LoginPage() {
     setSelectedCompany(found)
   }
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+
+    if (password !== confirmPassword) {
+      setError("Password dan Konfirmasi Password tidak cocok.")
+      return
+    }
+
     setLoading(true)
 
-    // Simulate login logic
+    // Simulate registration logic
     setTimeout(() => {
       try {
-        const users: Record<string, { password: string; role: string; name: string; redirect: string, allowedCompanyId?: string }> = {
-          "admin@koperasi.com": { password: "admin123", role: "superadmin", name: "Admin HR", redirect: "/dashboard" },
-          "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Tetap", redirect: "/attendance" },
-          "manajer.wki@koperasi.com": { password: "manajer123", role: "manajer", name: "Manajer WKI", redirect: "/approvals", allowedCompanyId: "WKI" },
-          "manajer.kowika@koperasi.com": { password: "manajer123", role: "manajer", name: "Manajer Kowika", redirect: "/approvals", allowedCompanyId: "KOWIKA" },
-          "direktur.wks@koperasi.com": { password: "direktur123", role: "direktur", name: "Direktur WKS", redirect: "/approvals", allowedCompanyId: "WKS" },
-          "direktur@koperasi.com": { password: "direktur123", role: "direktur", name: "Direktur Utama", redirect: "/approvals" },
-          "wkb1@koperasi.com": { password: "wkb1123", role: "wkb1", name: "Wakil Ketua Bidang 1", redirect: "/approvals" },
-          "ketua@koperasi.com": { password: "ketua123", role: "ketua", name: "Ketua Kowika", redirect: "/approvals" },
-        }
-
-        const user = users[email]
-        if (user && user.password === password) {
-          localStorage.setItem("userRole", user.role)
-          localStorage.setItem("userName", user.name)
-          localStorage.setItem("selectedCompanyId", selectedCompanyId)
-          router.replace(user.redirect)
-        } else {
-          setError("Email atau Password salah. Silakan coba lagi.")
-          setLoading(false)
-        }
+        // Here we would typically send data to the backend
+        // For now, we simulate a successful registration and auto-login
+        localStorage.setItem("userRole", "user")
+        localStorage.setItem("userName", name)
+        localStorage.setItem("selectedCompanyId", selectedCompanyId)
+        
+        // Redirect to dashboard/attendance
+        router.replace("/attendance")
       } catch (e) {
         console.error("Auth error:", e)
         setError("Terjadi kesalahan sistem. Silakan coba lagi.")
         setLoading(false)
       }
-    }, 800)
+    }, 1200)
   }
 
   return (
@@ -111,27 +106,27 @@ export default function LoginPage() {
           </div>
           <div className="space-y-3">
             <CardTitle className="text-4xl font-bold text-center tracking-tighter font-serif text-foreground italic">
-              {selectedCompany?.name || "Admin Portal"}
+              Pendaftaran Akun
             </CardTitle>
             <CardDescription className="text-lg text-center text-muted-foreground font-medium">
-              Silakan pilih entitas dan login untuk mengelola operasional.
+              Silakan lengkapi data diri Anda untuk mendapatkan akses ke sistem.
             </CardDescription>
           </div>
         </CardHeader>
         
-        <form onSubmit={handleLogin}>
-          <CardContent className="grid gap-10">
+        <form onSubmit={handleRegister}>
+          <CardContent className="grid gap-6">
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 text-destructive px-6 py-4 rounded-2xl flex items-center gap-3 animate-in shake duration-500">
                 <AlertCircle className="h-5 w-5" />
                 <p className="font-bold">{error}</p>
               </div>
             )}
-            
-            <div className="grid gap-4">
+
+            <div className="grid gap-3">
               <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Pilih Entitas Perusahaan</Label>
               <Select value={selectedCompanyId} onValueChange={handleCompanyChange}>
-                <SelectTrigger className="h-16 text-lg bg-accent/30 border-border rounded-2xl px-6 font-bold flex items-center gap-3">
+                <SelectTrigger className="h-14 text-lg bg-accent/30 border-border rounded-2xl px-6 font-bold flex items-center gap-3">
                   <Building2 className="h-5 w-5 text-muted-foreground" />
                   <SelectValue placeholder="Pilih PT / Koperasi">
                     {selectedCompany?.name}
@@ -139,15 +134,28 @@ export default function LoginPage() {
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-border bg-popover shadow-2xl p-2">
                   {companies.map((c) => (
-                    <SelectItem key={c.id} value={c.id} className="rounded-xl py-4 px-5 focus:bg-primary/10 cursor-pointer font-bold">
+                    <SelectItem key={c.id} value={c.id} className="rounded-xl py-4 px-5 focus:bg-primary/10 cursor-pointer font-bold text-lg">
                       {c.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="grid gap-3">
+              <Label htmlFor="name" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Nama Lengkap</Label>
+              <Input 
+                id="name" 
+                type="text" 
+                placeholder="John Doe" 
+                required 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-14 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
+              />
+            </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               <Label htmlFor="email" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Email Address</Label>
               <Input 
                 id="email" 
@@ -156,38 +164,51 @@ export default function LoginPage() {
                 required 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
+                className="h-14 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
               />
             </div>
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between ml-1">
-                <Label htmlFor="password" className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Password</Label>
-                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">Lupa Password?</Link>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-3">
+                <Label htmlFor="password" className="text-xs font-bold uppercase tracking-[0.2em] text-primary ml-1">Password</Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-14 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
+                />
               </div>
-              <Input 
-                id="password" 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
-              />
+              <div className="grid gap-3">
+                <Label htmlFor="confirmPassword" className="text-xs font-bold uppercase tracking-[0.2em] text-primary ml-1">Konfirmasi Password</Label>
+                <Input 
+                  id="confirmPassword" 
+                  type="password" 
+                  required 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="h-14 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
+                />
+              </div>
             </div>
+
           </CardContent>
           
-          <CardFooter className="flex flex-col gap-8 pt-10">
+          <CardFooter className="flex flex-col gap-6 pt-8">
             <Button 
               type="submit" 
               disabled={loading}
               className="w-full h-16 text-xl font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all"
             >
-              {loading ? "Memproses..." : "Masuk ke Dashboard"}
+              {loading ? "Memproses..." : "Daftar Sekarang"}
             </Button>
+            
             <div className="flex flex-col items-center gap-4 text-center">
               <p className="text-muted-foreground font-medium">
-                Belum punya akun?{" "}
-                <Link href="/register" className="text-primary font-bold hover:underline">
-                  Daftar di sini
+                Sudah punya akun?{" "}
+                <Link href="/login" className="text-primary font-bold hover:underline">
+                  Login di sini
                 </Link>
               </p>
               <Link href="/" className="text-sm font-bold text-muted-foreground hover:text-foreground transition-all flex items-center justify-center gap-2">

@@ -41,8 +41,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // OFFICE COORDINATES
-const OFFICE_LAT = -6.092379417846587;
-const OFFICE_LNG = 106.79142987629392;
+const OFFICE_LAT = -6.1115135;
+const OFFICE_LNG = 106.7869157;
 const MAX_RADIUS_METERS = 100;
 
 const DUMMY_EMPLOYEE_ID = "2bb7db5b-c648-44c2-8acf-46ab40cb009d" // Admin
