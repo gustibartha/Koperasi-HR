@@ -15,7 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, Building2, User } from "lucide-react"
-import { getCompanies } from "@/app/actions/formasi"
+import { getCompanies } from "@/app/actions/company"
 import {
   Select,
   SelectContent,
