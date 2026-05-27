@@ -191,19 +191,19 @@ export default function AttendancePage() {
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
         <div className="flex flex-col gap-3">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tighter text-foreground font-serif">Attendance</h1>
           <p className="text-muted-foreground text-xl font-medium">Real-time presence monitoring & weekly analytics.</p>
         </div>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-start md:items-end gap-1">
            <span className="text-sm font-bold uppercase tracking-[0.3em] text-primary">Shift Operasional</span>
            <span className="text-2xl font-bold text-foreground font-mono">07:30 - 16:00</span>
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-8 md:grid-cols-4">
+      <div className="grid gap-4 md:gap-8 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] relative overflow-hidden">
            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/5 blur-xl -mr-6 -mt-6"></div>
            <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
@@ -224,7 +224,7 @@ export default function AttendancePage() {
              <div className="text-5xl font-bold text-amber-500 tracking-tighter">04</div>
            </CardContent>
         </Card>
-        <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] col-span-2 relative overflow-hidden">
+        <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] sm:col-span-2 relative overflow-hidden">
            <CardHeader className="pb-2">
              <CardTitle className="text-xs font-bold text-muted-foreground tracking-widest uppercase flex items-center gap-2">
                <TrendingDown className="h-4 w-4 text-primary" />
@@ -247,7 +247,7 @@ export default function AttendancePage() {
         </Card>
       </div>
 
-      <div className="grid gap-12 lg:grid-cols-5">
+      <div className="grid gap-8 md:gap-12 grid-cols-1 lg:grid-cols-5">
         {/* Clock In/Out Section */}
         <Card className="lg:col-span-2 flex flex-col justify-center items-center p-12 space-y-10 rounded-[3rem] border border-border bg-card shadow-2xl relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-50"></div>

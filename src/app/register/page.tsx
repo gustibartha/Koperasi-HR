@@ -91,7 +91,7 @@ export default function RegisterPage() {
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary/5 blur-[120px] -z-10 rounded-full"></div>
       <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-secondary/5 blur-[120px] -z-10 rounded-full"></div>
 
-      <Card className="w-full max-w-xl bg-card border-border rounded-[3rem] p-12 shadow-3xl overflow-hidden relative">
+      <Card className="w-full max-w-xl bg-card border-border rounded-3xl md:rounded-[3rem] p-6 md:p-12 shadow-3xl overflow-hidden relative">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-secondary to-primary"></div>
         
         <CardHeader className="space-y-8 pb-10">

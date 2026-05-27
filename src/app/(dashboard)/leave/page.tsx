@@ -239,12 +239,12 @@ export default function LeavePage() {
 
       {/* Employee Leave Quotas */}
       <div className="rounded-[3rem] border border-border bg-card shadow-2xl overflow-hidden">
-        <div className="px-12 py-10 border-b border-border bg-accent/5 flex items-center justify-between">
+        <div className="px-6 md:px-12 py-8 md:py-10 border-b border-border bg-accent/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-0">
           <div>
             <h3 className="text-3xl font-bold tracking-tight text-foreground font-serif">Sisa Jatah Cuti Karyawan</h3>
             <p className="text-xl text-muted-foreground font-medium">Monitoring saldo cuti tahunan dan izin per pegawai.</p>
           </div>
-          <div className="relative w-80">
+          <div className="relative w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input 
               placeholder="Cari nama karyawan..." 
