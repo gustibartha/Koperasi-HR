@@ -9,24 +9,22 @@ export default function Home() {
       <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none" 
            style={{ backgroundImage: `radial-gradient(currentColor 1px, transparent 1px)`, backgroundSize: '40px 40px' }}></div>
 
-      <header className="relative z-10 px-6 lg:px-12 h-20 flex items-center justify-between border-b border-border bg-background/50 backdrop-blur-md">
+      <header className="relative z-10 px-4 md:px-6 lg:px-12 py-4 md:h-20 flex items-center justify-between border-b border-border bg-background/50 backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-xl border border-white/10 shadow-lg shadow-black/20">
-            <img src="/logo-wki.png" alt="WKI Logo" className="h-8 w-auto object-contain rounded" />
-            <div className="w-px h-6 bg-border mx-1"></div>
-            <img src="/logo-wks.jpg" alt="WKS Logo" className="h-8 w-auto object-contain rounded" />
-            <div className="w-px h-6 bg-border mx-1"></div>
-            <img src="/logo-kowika.png" alt="Kowika Logo" className="h-8 w-auto object-contain rounded" />
+          <div className="flex items-center gap-1.5 md:gap-2 bg-white/5 p-1 md:p-1.5 rounded-xl border border-white/10 shadow-lg shadow-black/20">
+            <img src="/logo-wki.png" alt="WKI Logo" className="h-6 md:h-8 w-auto object-contain rounded" />
+            <div className="w-px h-4 md:h-6 bg-border mx-0.5 md:mx-1"></div>
+            <img src="/logo-wks.jpg" alt="WKS Logo" className="h-6 md:h-8 w-auto object-contain rounded" />
+            <div className="w-px h-4 md:h-6 bg-border mx-0.5 md:mx-1"></div>
+            <img src="/logo-kowika.png" alt="Kowika Logo" className="h-6 md:h-8 w-auto object-contain rounded" />
           </div>
-          <div className="flex flex-col leading-tight">
+          <div className="hidden lg:flex flex-col leading-tight">
             <span className="font-bold text-xl tracking-tight">Wira Karyawan</span>
             <span className="text-[10px] uppercase tracking-[0.2em] text-primary/80 font-bold">Sistem Koperasi Digital</span>
           </div>
         </div>
         
-        {/* Navigation menu removed temporarily as requested */}
-
-        <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-background px-8 text-sm font-bold text-foreground transition-colors hover:bg-accent">
+        <Link href="/login" className="inline-flex h-9 md:h-10 items-center justify-center rounded-lg border border-border bg-background px-4 md:px-8 text-sm font-bold text-foreground transition-colors hover:bg-accent shrink-0">
           Masuk
         </Link>
       </header>
