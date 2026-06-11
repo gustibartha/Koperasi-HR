@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog"
 import {
   Select,
@@ -153,7 +154,7 @@ export default function LeavePage() {
                   <SelectTrigger className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus:ring-primary font-bold">
                     <SelectValue placeholder="Pilih kategori" />
                   </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false} className="bg-popover border-border rounded-2xl shadow-3xl min-w-[450px] max-h-[500px] p-2">
+                  <SelectContent side="bottom" sideOffset={8} align="start" alignItemWithTrigger={false} className="bg-popover border-border rounded-2xl shadow-3xl min-w-[450px] max-h-[500px] p-2 z-[60]">
                     <SelectGroup>
                       <SelectLabel className="text-primary font-bold px-5 py-3 text-sm uppercase tracking-widest">Cuti</SelectLabel>
                       <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="annual">Cuti Tahunan</SelectItem>
@@ -318,9 +319,9 @@ export default function LeavePage() {
                         </div>
 
                         <DialogFooter>
-                           <Button className="w-full h-14 rounded-xl font-bold text-lg bg-primary" onClick={() => setSelectedEmployee(null)}>
+                           <DialogClose render={<Button className="w-full h-14 rounded-xl font-bold text-lg bg-primary" />}>
                               Tutup
-                           </Button>
+                           </DialogClose>
                         </DialogFooter>
                      </DialogContent>
                    </Dialog>
