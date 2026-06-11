@@ -64,13 +64,10 @@ export default function LoginPage() {
       try {
         const users: Record<string, { password: string; role: string; name: string; redirect: string, allowedCompanyId?: string }> = {
           "admin@koperasi.com": { password: "admin123", role: "superadmin", name: "Admin HR", redirect: "/dashboard" },
-          "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Tetap", redirect: "/attendance" },
-          "manajer.wki@koperasi.com": { password: "manajer123", role: "manajer", name: "Manajer WKI", redirect: "/approvals", allowedCompanyId: "WKI" },
-          "manajer.kowika@koperasi.com": { password: "manajer123", role: "manajer", name: "Manajer Kowika", redirect: "/approvals", allowedCompanyId: "KOWIKA" },
-          "direktur.wks@koperasi.com": { password: "direktur123", role: "direktur", name: "Direktur WKS", redirect: "/approvals", allowedCompanyId: "WKS" },
-          "direktur@koperasi.com": { password: "direktur123", role: "direktur", name: "Direktur Utama", redirect: "/approvals" },
-          "wkb1@koperasi.com": { password: "wkb1123", role: "wkb1", name: "Wakil Ketua Bidang 1", redirect: "/approvals" },
-          "ketua@koperasi.com": { password: "ketua123", role: "ketua", name: "Ketua Kowika", redirect: "/approvals" },
+          "jufri.a60@gmail.com": { password: "admin123", role: "admin", name: "M. Jufri Arfah (Direktur)", redirect: "/dashboard", allowedCompanyId: "59083ab0-cf7a-4482-9304-16708164ef45" },
+          "ardiarkanto@gmail.com": { password: "admin123", role: "admin", name: "Ardianto (Direktur)", redirect: "/dashboard", allowedCompanyId: "279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e" },
+          "fitrahginanjar@gmail.com": { password: "admin123", role: "admin", name: "Fitrah Ginanjar (Manajer)", redirect: "/dashboard", allowedCompanyId: "22841c61-fa3d-4b79-8922-b50ece65ca70" },
+          "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Demo", redirect: "/attendance" },
         }
 
         const user = users[email]
