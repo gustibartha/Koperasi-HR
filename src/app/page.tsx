@@ -116,8 +116,8 @@ export default function Home() {
       <footer className="relative z-10 py-10 px-6 lg:px-12 border-t border-border text-muted-foreground text-[11px] font-bold uppercase tracking-[0.2em] flex flex-col md:flex-row justify-between items-center gap-6 bg-background/80 backdrop-blur-sm">
         <p>© 2026 Koperasi Wira Karyawan. All rights reserved.</p>
         <div className="flex gap-10">
-          <Link href="#" className="hover:text-primary transition-colors">Privacy Policy</Link>
-          <Link href="#" className="hover:text-primary transition-colors">Terms of Service</Link>
+          <Link href="/privacy-policy" className="hover:text-primary transition-colors">Privacy Policy</Link>
+          <Link href="/terms-of-service" className="hover:text-primary transition-colors">Terms of Service</Link>
         </div>
       </footer>
     </div>

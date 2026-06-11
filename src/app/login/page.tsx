@@ -162,7 +162,7 @@ export default function LoginPage() {
             <div className="grid gap-4">
               <div className="flex items-center justify-between ml-1">
                 <Label htmlFor="password" className="text-sm font-bold uppercase tracking-[0.2em] text-primary">Password</Label>
-                <Link href="#" className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">Lupa Password?</Link>
+                <Link href="/forgot-password" className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors uppercase tracking-widest">Lupa Password?</Link>
               </div>
               <Input 
                 id="password" 
