@@ -67,6 +67,8 @@ export default function PayrollPage() {
   const [employeeList, setEmployeeList] = React.useState<any[]>([])
   const [openInput, setOpenInput] = React.useState(false)
   const [openImport, setOpenImport] = React.useState(false)
+  const [selectedPayroll, setSelectedPayroll] = React.useState<any>(null)
+  const [openViewSlip, setOpenViewSlip] = React.useState(false)
   const { selectedCompany } = useCompany()
 
   // State for form inputs
@@ -211,6 +213,11 @@ export default function PayrollPage() {
   const totalPayrollThisMonth = payrollList
     .filter(p => p.month === currentMonth)
     .reduce((sum, p) => sum + (p.netSalary || 0), 0)
+
+  const handleViewSlip = (data: any) => {
+    setSelectedPayroll(data)
+    setOpenViewSlip(true)
+  }
 
   const downloadPDFSlip = (data: any) => {
     const doc = new jsPDF()
@@ -556,7 +563,12 @@ export default function PayrollPage() {
                 </TableCell>
                 <TableCell className="text-right pr-12">
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" size="icon" className="h-14 w-14 rounded-2xl border-border hover:bg-accent transition-all">
+                    <Button
+                      onClick={() => handleViewSlip(item)}
+                      variant="outline"
+                      size="icon"
+                      className="h-14 w-14 rounded-2xl border-border hover:bg-accent transition-all"
+                    >
                        <Eye className="h-6 w-6" />
                     </Button>
                     <Button 
@@ -573,6 +585,148 @@ export default function PayrollPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* View Slip Dialog */}
+      <Dialog open={openViewSlip} onOpenChange={setOpenViewSlip}>
+        <DialogContent className="sm:max-w-[900px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-10 pb-6 bg-accent/5 border-b border-border">
+            <DialogTitle className="text-3xl font-bold font-serif">Slip Gaji Karyawan</DialogTitle>
+            {selectedPayroll && <DialogDescription className="text-lg mt-2">{selectedPayroll.employeeName} - {selectedPayroll.month}</DialogDescription>}
+          </DialogHeader>
+
+          <div className="overflow-y-auto flex-1 p-10 space-y-8">
+            {selectedPayroll && (
+              <>
+                {/* Header */}
+                <div className="text-center border-b-2 border-border pb-6">
+                  <h2 className="text-2xl font-bold">{selectedCompany?.name}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{selectedCompany?.address}</p>
+                  <h3 className="text-xl font-bold mt-4">SLIP GAJI KARYAWAN</h3>
+                </div>
+
+                {/* Employee & Period Info */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Nama Karyawan</p>
+                    <p className="text-lg font-bold">{selectedPayroll.employeeName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Periode</p>
+                    <p className="text-lg font-bold">{selectedPayroll.month}</p>
+                  </div>
+                </div>
+
+                {/* Earnings Section */}
+                <div>
+                  <h4 className="text-lg font-bold mb-4">I. PENERIMAAN (EARNINGS)</h4>
+                  <div className="space-y-3 border-l-4 border-primary pl-4">
+                    {[
+                      { label: "Gaji Pokok", value: selectedPayroll.basicSalary },
+                      { label: "Uang Makan", value: selectedPayroll.mealAllowance },
+                      { label: "Tunjangan Jabatan", value: selectedPayroll.positionAllowance },
+                      { label: "Tunjangan Kompetensi", value: selectedPayroll.competencyAllowance },
+                      { label: "Tunjangan HP", value: selectedPayroll.phoneAllowance },
+                      { label: "Premi", value: selectedPayroll.premi },
+                      { label: "Lembur (Jam)", value: selectedPayroll.overtimeAmount },
+                      { label: "Lembur (Makan)", value: selectedPayroll.overtimeMeal },
+                    ]
+                      .filter(item => item.value)
+                      .map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="font-bold text-primary">{formatCurrency(item.value)}</span>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex justify-between items-center mt-4 p-4 bg-primary/10 rounded-xl font-bold text-lg">
+                    <span>TOTAL PENERIMAAN</span>
+                    <span className="text-primary">
+                      {formatCurrency(
+                        (selectedPayroll.basicSalary || 0) +
+                        (selectedPayroll.mealAllowance || 0) +
+                        (selectedPayroll.positionAllowance || 0) +
+                        (selectedPayroll.competencyAllowance || 0) +
+                        (selectedPayroll.phoneAllowance || 0) +
+                        (selectedPayroll.premi || 0) +
+                        (selectedPayroll.overtimeAmount || 0) +
+                        (selectedPayroll.overtimeMeal || 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Deductions Section */}
+                <div>
+                  <h4 className="text-lg font-bold mb-4">II. POTONGAN (DEDUCTIONS)</h4>
+                  <div className="space-y-3 border-l-4 border-destructive pl-4">
+                    {[
+                      { label: "Potongan Pinjaman (Koperasi)", value: selectedPayroll.loanDeduction },
+                      { label: "Potongan Toko", value: selectedPayroll.shopDeduction },
+                      { label: "Jamsostek", value: selectedPayroll.jamsostek },
+                      { label: "BPJS Kesehatan", value: selectedPayroll.bpjsHealth },
+                      { label: "Denda Terlambat (Absensi)", value: selectedPayroll.lateDeduction },
+                      { label: "Potongan Izin/Cuti", value: selectedPayroll.leaveDeduction },
+                      { label: "Potongan Lainnya", value: selectedPayroll.otherDeduction },
+                    ]
+                      .filter(item => item.value)
+                      .map((item, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-2 border-b border-border/50">
+                          <span className="font-medium">{item.label}</span>
+                          <span className="font-bold text-destructive">{formatCurrency(item.value)}</span>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex justify-between items-center mt-4 p-4 bg-destructive/10 rounded-xl font-bold text-lg">
+                    <span>TOTAL POTONGAN</span>
+                    <span className="text-destructive">
+                      {formatCurrency(
+                        (selectedPayroll.loanDeduction || 0) +
+                        (selectedPayroll.shopDeduction || 0) +
+                        (selectedPayroll.jamsostek || 0) +
+                        (selectedPayroll.bpjsHealth || 0) +
+                        (selectedPayroll.lateDeduction || 0) +
+                        (selectedPayroll.leaveDeduction || 0) +
+                        (selectedPayroll.otherDeduction || 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Net Salary */}
+                <div className="p-6 bg-gradient-to-r from-primary to-primary/80 rounded-2xl text-white">
+                  <p className="text-sm uppercase font-bold opacity-90 mb-2">TAKE HOME PAY (NET SALARY)</p>
+                  <p className="text-4xl font-bold tracking-tighter">{formatCurrency(selectedPayroll.netSalary)}</p>
+                </div>
+
+                {/* Work Hours */}
+                <div className="grid grid-cols-2 gap-6 p-4 bg-accent/5 rounded-xl">
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Jam Kerja Aktual</p>
+                    <p className="text-2xl font-bold">{selectedPayroll.actualWorkHours} jam</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Jam Kerja Diharapkan</p>
+                    <p className="text-2xl font-bold">{selectedPayroll.expectedWorkHours} jam</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-center text-muted-foreground pt-4">
+                  Dibuat secara otomatis oleh Sistem HR Kowika pada {new Date().toLocaleString()}
+                </p>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="p-6 border-t border-border bg-accent/5">
+            <Button
+              onClick={() => downloadPDFSlip(selectedPayroll)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 h-12 rounded-xl"
+            >
+              <FileDown className="h-5 w-5 mr-2" /> Download PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

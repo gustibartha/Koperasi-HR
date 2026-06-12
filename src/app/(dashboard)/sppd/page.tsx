@@ -104,6 +104,8 @@ export default function SPPDPage() {
   const [isFetching, setIsFetching] = React.useState(true)
   const [sppdList, setSppdList] = React.useState<any[]>([])
   const [employeeList, setEmployeeList] = React.useState<any[]>([])
+  const [selectedSppd, setSelectedSppd] = React.useState<any>(null)
+  const [openViewDetail, setOpenViewDetail] = React.useState(false)
   const { selectedCompany } = useCompany()
 
   const [formData, setFormData] = React.useState({
@@ -200,6 +202,11 @@ export default function SPPDPage() {
       currency: "IDR",
       maximumFractionDigits: 0,
     }).format(amount)
+  }
+
+  const handleViewDetail = (sppd: any) => {
+    setSelectedSppd(sppd)
+    setOpenViewDetail(true)
   }
 
   const handleDownload = (sppd: any) => {
@@ -651,7 +658,10 @@ export default function SPPDPage() {
                         <DropdownMenuContent align="end" className="w-56 bg-popover border-border rounded-2xl p-2 shadow-2xl">
                           <DropdownMenuLabel className="px-4 py-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">Opsi SPPD</DropdownMenuLabel>
                           <DropdownMenuSeparator className="bg-border/50" />
-                          <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 rounded-xl focus:bg-primary/10 focus:text-primary cursor-pointer transition-all">
+                          <DropdownMenuItem
+                            onClick={() => handleViewDetail(sppd)}
+                            className="flex items-center gap-3 px-4 py-3 rounded-xl focus:bg-primary/10 focus:text-primary cursor-pointer transition-all"
+                          >
                             <Eye className="h-5 w-5" /> <span className="font-bold">Lihat Detail</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem className="flex items-center gap-3 px-4 py-3 rounded-xl focus:bg-primary/10 focus:text-primary cursor-pointer transition-all">
@@ -676,6 +686,140 @@ export default function SPPDPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* SPPD Detail View Dialog */}
+      <Dialog open={openViewDetail} onOpenChange={setOpenViewDetail}>
+        <DialogContent className="sm:max-w-[900px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-10 pb-6 bg-accent/5 border-b border-border">
+            <DialogTitle className="text-3xl font-bold font-serif">Detail SPPD</DialogTitle>
+            {selectedSppd && <DialogDescription className="text-lg mt-2">{selectedSppd.employeeName} - {new Date(selectedSppd.startDate).toLocaleDateString('id-ID')}</DialogDescription>}
+          </DialogHeader>
+
+          <div className="overflow-y-auto flex-1 p-10 space-y-8">
+            {selectedSppd && (
+              <>
+                {/* Header */}
+                <div className="text-center border-b-2 border-border pb-6">
+                  <h2 className="text-2xl font-bold">{selectedCompany?.name}</h2>
+                  <h3 className="text-xl font-bold mt-4">SURAT PERINTAH PERJALANAN DINAS</h3>
+                </div>
+
+                {/* Employee & Request ID */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Nama Pegawai</p>
+                    <p className="text-lg font-bold">{selectedSppd.employeeName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">ID Pengajuan</p>
+                    <p className="text-lg font-bold font-mono">{selectedSppd.id?.slice(0, 12)}...</p>
+                  </div>
+                </div>
+
+                {/* Travel Route & Dates */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-3 border-l-4 border-primary pl-4">
+                    <div>
+                      <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Bandara Asal</p>
+                      <p className="text-lg font-bold">{selectedSppd.originAirport}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Bandara Tujuan</p>
+                      <p className="text-lg font-bold">{selectedSppd.destinationAirport}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 border-l-4 border-secondary pl-4">
+                    <div>
+                      <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Tanggal Berangkat</p>
+                      <p className="text-lg font-bold">{new Date(selectedSppd.startDate).toLocaleDateString('id-ID')}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-1">Tanggal Kembali</p>
+                      <p className="text-lg font-bold">{new Date(selectedSppd.endDate).toLocaleDateString('id-ID')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Purpose */}
+                <div>
+                  <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-2">Tujuan Perjalanan</p>
+                  <div className="p-4 bg-accent/5 rounded-xl border-l-4 border-primary">
+                    <p className="text-base leading-relaxed">{selectedSppd.reason}</p>
+                  </div>
+                </div>
+
+                {/* Status Badge */}
+                <div className="flex items-center gap-3">
+                  <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Status Approval:</p>
+                  <Badge
+                    className={`px-4 py-2 text-base font-bold ${
+                      selectedSppd.status === 'disetujui'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                        : selectedSppd.status === 'ditolak'
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                        : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
+                    }`}
+                  >
+                    {selectedSppd.status === 'disetujui' && '✓ DISETUJUI'}
+                    {selectedSppd.status === 'ditolak' && '✗ DITOLAK'}
+                    {selectedSppd.status === 'menunggu' && '⏳ MENUNGGU'}
+                  </Badge>
+                </div>
+
+                {/* Cost Breakdown */}
+                <div>
+                  <h4 className="text-lg font-bold mb-4">Rincian Estimasi Biaya</h4>
+                  <div className="space-y-3">
+                    {[
+                      { label: "Biaya Transportasi", value: selectedSppd.transportCost, icon: "✈️" },
+                      { label: "Biaya Akomodasi (Hotel)", value: selectedSppd.hotelCost, icon: "🏨" },
+                      { label: "Uang Harian (Daily Allowance)", value: selectedSppd.dailyAllowance, icon: "💵" },
+                      { label: "Biaya Lainnya", value: selectedSppd.otherCost, icon: "📋" },
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-3 bg-accent/5 rounded-lg border-l-4 border-primary">
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{item.icon}</span>
+                          <span className="font-medium">{item.label}</span>
+                        </div>
+                        <span className="font-bold text-primary">
+                          Rp {item.value?.toLocaleString('id-ID') || '0'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Total Cost */}
+                <div className="p-6 bg-gradient-to-r from-primary to-primary/80 rounded-2xl text-white">
+                  <p className="text-sm uppercase font-bold opacity-90 mb-2">Total Biaya SPPD</p>
+                  <p className="text-4xl font-bold tracking-tighter">Rp {selectedSppd.totalCost?.toLocaleString('id-ID')}</p>
+                </div>
+
+                {/* Durasi */}
+                <div className="p-4 bg-accent/5 rounded-xl border-l-4 border-secondary">
+                  <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest mb-2">Durasi Perjalanan</p>
+                  <p className="text-2xl font-bold">
+                    {Math.ceil((new Date(selectedSppd.endDate).getTime() - new Date(selectedSppd.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1} hari
+                  </p>
+                </div>
+
+                <p className="text-xs text-center text-muted-foreground pt-4">
+                  Dibuat pada {new Date(selectedSppd.createdAt).toLocaleString('id-ID')}
+                </p>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="p-6 border-t border-border bg-accent/5">
+            <Button
+              onClick={() => handleDownload(selectedSppd)}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 h-12 rounded-xl"
+            >
+              <Printer className="h-5 w-5 mr-2" /> Cetak Surat Tugas
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
