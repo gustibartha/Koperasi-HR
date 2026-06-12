@@ -417,8 +417,11 @@ export default function PayrollPage() {
             <DialogContent className="sm:max-w-[900px] bg-popover border-border rounded-[3rem] p-0 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               <DialogHeader className="p-10 pb-6 bg-accent/5">
                 <DialogTitle className="text-4xl font-bold font-serif text-foreground">Kalkulasi Gaji Pegawai</DialogTitle>
-                <DialogDescription className="text-lg text-muted-foreground">
-                  Data yang disubmit akan melalui persetujuan {getApprovalHierarchy().join(' → ')}.
+                <DialogDescription className="text-lg text-muted-foreground space-y-2">
+                  <div>Data yang disubmit akan melalui persetujuan {getApprovalHierarchy().join(' → ')}.</div>
+                  <div className="text-sm bg-blue-500/10 p-3 rounded-lg border border-blue-500/20 text-blue-700">
+                    ℹ️ <strong>Potongan keterlambatan dan alpha akan dihitung otomatis dari data kehadiran</strong> - tidak perlu diinput manual
+                  </div>
                 </DialogDescription>
               </DialogHeader>
 
@@ -499,26 +502,46 @@ export default function PayrollPage() {
                     </div>
                   </TabsContent>
 
-                  <TabsContent value="deductions" className="m-0 grid grid-cols-2 gap-8">
-                    <div className="grid gap-3">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Simpan Pinjam Koperasi</Label>
-                      <Input value={formData.coopLoan} onChange={(e) => handleInputChange('coopLoan', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                  <TabsContent value="deductions" className="m-0 space-y-6">
+                    {/* Auto-calculated deductions info */}
+                    <div className="grid grid-cols-2 gap-6 p-6 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-2">🕐 POTONGAN KETERLAMBATAN (AUTO)</p>
+                        <p className="text-2xl font-bold text-blue-600">—</p>
+                        <p className="text-xs text-blue-500/70 mt-2">Dihitung otomatis dari data kehadiran</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600 mb-2">📋 POTONGAN ALPHA (AUTO)</p>
+                        <p className="text-2xl font-bold text-blue-600">—</p>
+                        <p className="text-xs text-blue-500/70 mt-2">Dihitung otomatis dari data cuti/ijin</p>
+                      </div>
                     </div>
-                    <div className="grid gap-3">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Potongan Belanja Toko</Label>
-                      <Input value={formData.shopDeduction} onChange={(e) => handleInputChange('shopDeduction', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
-                    </div>
-                    <div className="grid gap-3">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">BPJS Jamsostek (TK)</Label>
-                      <Input value={formData.jamsostek} onChange={(e) => handleInputChange('jamsostek', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
-                    </div>
-                    <div className="grid gap-3">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">BPJS Kesehatan</Label>
-                      <Input value={formData.bpjsHealth} onChange={(e) => handleInputChange('bpjsHealth', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
-                    </div>
-                    <div className="grid gap-3">
-                      <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Potongan Lain-lain</Label>
-                      <Input value={formData.otherDeduction} onChange={(e) => handleInputChange('otherDeduction', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+
+                    {/* Manual deductions */}
+                    <div>
+                      <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Potongan Manual Lainnya</p>
+                      <div className="grid grid-cols-2 gap-8">
+                        <div className="grid gap-3">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Simpan Pinjam Koperasi</Label>
+                          <Input value={formData.coopLoan} onChange={(e) => handleInputChange('coopLoan', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                        </div>
+                        <div className="grid gap-3">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Potongan Belanja Toko</Label>
+                          <Input value={formData.shopDeduction} onChange={(e) => handleInputChange('shopDeduction', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                        </div>
+                        <div className="grid gap-3">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">BPJS Jamsostek (TK)</Label>
+                          <Input value={formData.jamsostek} onChange={(e) => handleInputChange('jamsostek', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                        </div>
+                        <div className="grid gap-3">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">BPJS Kesehatan</Label>
+                          <Input value={formData.bpjsHealth} onChange={(e) => handleInputChange('bpjsHealth', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                        </div>
+                        <div className="grid gap-3">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest text-primary ml-1">Potongan Lain-lain</Label>
+                          <Input value={formData.otherDeduction} onChange={(e) => handleInputChange('otherDeduction', e.target.value)} placeholder="0" className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold" />
+                        </div>
+                      </div>
                     </div>
                   </TabsContent>
 

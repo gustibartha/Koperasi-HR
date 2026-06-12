@@ -64,20 +64,56 @@ export async function calculateAndGeneratePayroll(
 
     let leaveDeduction = 0;
     const LEAVE_DEDUCTION_RATE = 100000; // Rp 100.000 per hari izin penting/tidak dibayar
+    const ALPHA_DEDUCTION_RATE = 150000; // Rp 150.000 per hari alpha (lebih tinggi karena tidak izin)
+    const approvedLeaveDays = new Set<string>(); // Track approved leave dates
 
     monthLeaves.forEach(lv => {
        const start = new Date(lv.startDate);
        const end = new Date(lv.endDate);
        const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-       
+
        // Add to work hours (8h per day)
        totalActualWorkHours += diffDays * 8;
+
+       // Track leave dates
+       for (let i = 0; i < diffDays; i++) {
+          const d = new Date(start);
+          d.setDate(d.getDate() + i);
+          approvedLeaveDays.add(d.toISOString().split('T')[0]);
+       }
 
        // Apply deduction for certain types (including annual for simulation/policy)
        if (lv.type === "annual" || lv.type === "important" || lv.type === "unpaid") {
           leaveDeduction += diffDays * LEAVE_DEDUCTION_RATE;
        }
     });
+
+    // 2b. Calculate Alpha (absent without approved leave)
+    let alphaDeduction = 0;
+    const attendanceDates = new Set<string>();
+    monthAttendances.forEach(att => {
+      if (att.clockIn) {
+        const date = new Date(att.clockIn).toISOString().split('T')[0];
+        attendanceDates.add(date);
+      }
+    });
+
+    // Calculate working days in month (exclude weekends)
+    let workingDaysInMonth = 0;
+    let alphaDays = 0;
+    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
+      const dayOfWeek = d.getDay();
+      // Exclude Saturdays (6) and Sundays (0)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workingDaysInMonth++;
+        const dateStr = new Date(d).toISOString().split('T')[0];
+        // Check if employee has attendance or approved leave on this day
+        if (!attendanceDates.has(dateStr) && !approvedLeaveDays.has(dateStr)) {
+          alphaDays++;
+          alphaDeduction += ALPHA_DEDUCTION_RATE;
+        }
+      }
+    }
 
     const lateDeduction = totalLateMinutes * DEDUCTION_PER_MINUTE;
     const expectedWorkHours = 22 * 8; 
@@ -106,12 +142,13 @@ export async function calculateAndGeneratePayroll(
       (extras.overtimeAmount || 0) + 
       (extras.overtimeMeal || 0);
 
-    const totalDeductions = totalLoanDeduction + 
-      lateDeduction + 
-      leaveDeduction + 
-      (extras.shopDeduction || 0) + 
-      (extras.jamsostek || 0) + 
-      (extras.bpjsHealth || 0) + 
+    const totalDeductions = totalLoanDeduction +
+      lateDeduction +
+      leaveDeduction +
+      alphaDeduction +
+      (extras.shopDeduction || 0) +
+      (extras.jamsostek || 0) +
+      (extras.bpjsHealth || 0) +
       (extras.otherDeduction || 0);
 
     const netSalary = totalEarnings - totalDeductions;
@@ -134,7 +171,8 @@ export async function calculateAndGeneratePayroll(
       jamsostek: extras.jamsostek || 0,
       bpjsHealth: extras.bpjsHealth || 0,
       lateDeduction,
-      leaveDeduction,
+      // Note: leaveDeduction includes both approved leave deductions and alpha (absent) deductions
+      leaveDeduction: leaveDeduction + alphaDeduction,
       otherDeduction: extras.otherDeduction || 0,
       actualWorkHours: Math.round(totalActualWorkHours * 10) / 10,
       expectedWorkHours,
@@ -142,7 +180,8 @@ export async function calculateAndGeneratePayroll(
       createdAt: new Date(),
     });
 
-    return { success: true, message: "Penggajian berhasil digenerate dengan kalkulasi absensi" };
+    const summary = `Penggajian berhasil digenerate. Keterlambatan: Rp ${lateDeduction.toLocaleString('id-ID')}, Alpha: Rp ${alphaDeduction.toLocaleString('id-ID')}, Cuti: Rp ${leaveDeduction.toLocaleString('id-ID')}`;
+    return { success: true, message: summary };
   } catch (error) {
     console.error("PAYROLL_ERROR:", error);
     return { success: false, message: "Gagal memproses penggajian: " + (error as Error).message, error };
