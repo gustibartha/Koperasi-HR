@@ -111,7 +111,7 @@ export default function PayrollPage() {
     }
   }, [selectedCompany, fetchPayrolls])
 
-  const handleGenerate = async () => {
+  const handleSavePayroll = async () => {
     if (!formData.employeeId || !formData.basicSalary) {
       alert("Pilih pegawai dan masukkan gaji pokok")
       return
@@ -145,6 +145,50 @@ export default function PayrollPage() {
       setOpenInput(false)
       fetchPayrolls()
       setFormData({ employeeId: "", month: new Date().toISOString().slice(0, 7), basicSalary: "" })
+      alert("Data gaji berhasil disimpan!")
+    } else {
+      alert(res.message)
+    }
+  }
+
+  const handleGenerateAndSubmit = async () => {
+    if (!formData.employeeId || !formData.basicSalary) {
+      alert("Pilih pegawai dan masukkan gaji pokok")
+      return
+    }
+
+    const hierarchy = getApprovalHierarchy()
+    const approvers = hierarchy.join(" → ")
+
+    setIsSubmitting(true)
+    const extras = {
+      mealAllowance: parseNumber(formData.mealAllowance),
+      positionAllowance: parseNumber(formData.positionAllowance),
+      competencyAllowance: parseNumber(formData.competencyAllowance),
+      phoneAllowance: parseNumber(formData.phoneAllowance),
+      premi: parseNumber(formData.premi),
+      overtimeAmount: parseNumber(formData.overtimeAmount),
+      overtimeMeal: parseNumber(formData.overtimeMeal),
+      shopDeduction: parseNumber(formData.shopDeduction),
+      jamsostek: parseNumber(formData.jamsostek),
+      bpjsHealth: parseNumber(formData.bpjsHealth),
+      otherDeduction: parseNumber(formData.otherDeduction),
+    }
+
+    const res = await calculateAndGeneratePayroll(
+      formData.employeeId,
+      formData.month,
+      parseNumber(formData.basicSalary),
+      extras,
+      selectedCompany.id
+    )
+    setIsSubmitting(false)
+
+    if (res.success) {
+      setOpenInput(false)
+      fetchPayrolls()
+      setFormData({ employeeId: "", month: new Date().toISOString().slice(0, 7), basicSalary: "" })
+      alert(`Data gaji berhasil dikirim untuk persetujuan ke: ${approvers}`)
     } else {
       alert(res.message)
     }
@@ -179,24 +223,43 @@ export default function PayrollPage() {
     setFormData(prev => ({ ...prev, [key]: formatNumber(value) }))
   }
 
-  // Calculate THP
+  // Calculate THP with all earnings and deductions
   const calculateTHP = () => {
-    const earnings = parseNumber(formData.basicSalary) + 
-                     parseNumber(formData.mealAllowance) + 
-                     parseNumber(formData.positionAllowance) + 
-                     parseNumber(formData.competencyAllowance) + 
-                     parseNumber(formData.phoneAllowance) + 
-                     parseNumber(formData.premi) + 
-                     parseNumber(formData.overtimeAmount) + 
+    const earnings = parseNumber(formData.basicSalary) +
+                     parseNumber(formData.mealAllowance) +
+                     parseNumber(formData.positionAllowance) +
+                     parseNumber(formData.competencyAllowance) +
+                     parseNumber(formData.phoneAllowance) +
+                     parseNumber(formData.premi) +
+                     parseNumber(formData.overtimeAmount) +
                      parseNumber(formData.overtimeMeal)
-    
-    const deductions = parseNumber(formData.coopLoan) + 
-                       parseNumber(formData.shopDeduction) + 
-                       parseNumber(formData.jamsostek) + 
-                       parseNumber(formData.bpjsHealth) + 
+
+    // Note: lateDeduction and leaveDeduction are calculated by system from attendance/leave data
+    const deductions = parseNumber(formData.coopLoan) +
+                       parseNumber(formData.shopDeduction) +
+                       parseNumber(formData.jamsostek) +
+                       parseNumber(formData.bpjsHealth) +
                        parseNumber(formData.otherDeduction)
-    
-    return earnings - deductions
+
+    return { earnings, deductions, net: earnings - deductions }
+  }
+
+  // Get approval hierarchy based on company
+  const getApprovalHierarchy = () => {
+    if (!selectedCompany) return []
+    const companyId = selectedCompany.id
+    const kowikaId = '22841c61-fa3d-4b79-8922-b50ece65ca70'
+    const wkiId = '59083ab0-cf7a-4482-9304-16708164ef45'
+    const wksId = '279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e'
+
+    if (companyId === kowikaId) {
+      return ['Manajer'] // KOWIKA: admin → manajer
+    } else if (companyId === wkiId) {
+      return ['SPV', 'Direktur'] // WKI: admin → SPV → direktur
+    } else if (companyId === wksId) {
+      return ['Direktur'] // WKS: admin → direktur
+    }
+    return ['Manajer'] // default
   }
 
   const formatCurrency = (amount: number) => {
@@ -353,7 +416,9 @@ export default function PayrollPage() {
             <DialogContent className="sm:max-w-[900px] bg-popover border-border rounded-[3rem] p-0 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               <DialogHeader className="p-10 pb-6 bg-accent/5">
                 <DialogTitle className="text-4xl font-bold font-serif text-foreground">Kalkulasi Gaji Pegawai</DialogTitle>
-                <DialogDescription className="text-lg text-muted-foreground">Data yang disubmit akan melalui persetujuan Manajer, WKB 1, dan Ketua.</DialogDescription>
+                <DialogDescription className="text-lg text-muted-foreground">
+                  Data yang disubmit akan melalui persetujuan {getApprovalHierarchy().join(' → ')}.
+                </DialogDescription>
               </DialogHeader>
 
               <Tabs defaultValue="profile" className="flex-1 flex flex-col overflow-hidden">
@@ -469,18 +534,58 @@ export default function PayrollPage() {
                 </div>
               </Tabs>
 
-              <DialogFooter className="p-10 pt-6 bg-accent/5 border-t border-border flex flex-row items-center justify-between gap-6">
-                <div className="text-left">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1">Total Gaji Pokok</p>
-                  <p className="text-4xl font-bold text-primary tracking-tighter">{formatCurrency(parseNumber(formData.basicSalary))}</p>
+              <DialogFooter className="p-10 pt-6 bg-accent/5 border-t border-border">
+                <div className="w-full grid grid-cols-5 gap-4 items-end">
+                  {/* Summary Section */}
+                  <div className="col-span-2 space-y-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1">Total Penerimaan</p>
+                      <p className="text-2xl font-bold text-green-600 tracking-tighter">
+                        {formatCurrency(calculateTHP().earnings)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-1">Total Potongan</p>
+                      <p className="text-2xl font-bold text-red-600 tracking-tighter">
+                        {formatCurrency(calculateTHP().deductions)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Net Salary Section */}
+                  <div className="col-span-2 p-6 bg-gradient-to-r from-primary to-primary/80 rounded-2xl text-white">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-90 mb-2">TAKE HOME PAY</p>
+                    <p className="text-3xl font-bold tracking-tighter">{formatCurrency(calculateTHP().net)}</p>
+                  </div>
+
+                  {/* Buttons Section */}
+                  <div className="col-span-1 flex flex-col gap-3">
+                    <Button
+                      onClick={handleSavePayroll}
+                      disabled={isSubmitting}
+                      variant="outline"
+                      className="h-14 px-6 text-base font-bold border-border rounded-xl"
+                    >
+                      {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                      Simpan
+                    </Button>
+                    <Button
+                      onClick={handleGenerateAndSubmit}
+                      disabled={isSubmitting}
+                      className="h-14 px-6 text-base font-bold bg-primary text-primary-foreground rounded-xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02]"
+                    >
+                      {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                      Kirim
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex gap-4">
-                  <Button variant="outline" onClick={() => setOpenInput(false)} className="h-16 px-8 text-lg font-bold border-border rounded-2xl">Batal</Button>
-                  <Button onClick={handleGenerate} disabled={isSubmitting} className="h-16 px-10 text-lg font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02]">
-                    {isSubmitting && <Loader2 className="mr-2 h-6 w-6 animate-spin" />}
-                    Kirim ke Manajer
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => setOpenInput(false)}
+                  variant="ghost"
+                  className="absolute top-4 right-4 h-10 w-10 p-0"
+                >
+                  ✕
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
