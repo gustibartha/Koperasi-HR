@@ -38,12 +38,32 @@ export default function ApprovalCenterPage() {
   const [processingId, setProcessingId] = React.useState<string | null>(null)
   const { selectedCompany } = useCompany()
 
+  // Get approval hierarchy based on company
+  const getApprovalHierarchy = () => {
+    if (!selectedCompany) return ['Admin']
+    const companyId = selectedCompany.id
+    const kowikaId = '22841c61-fa3d-4b79-8922-b50ece65ca70'
+    const wkiId = '59083ab0-cf7a-4482-9304-16708164ef45'
+    const wksId = '279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e'
+
+    if (companyId === kowikaId) {
+      return ['Admin', 'Wakil Ketua Bidang 1', 'Ketua Kowika']
+    } else if (companyId === wkiId) {
+      return ['Admin', 'SPV', 'Direktur']
+    } else if (companyId === wksId) {
+      return ['Admin', 'Direktur']
+    }
+    return ['Admin', 'Direktur']
+  }
+
   const fetchRequests = React.useCallback(async () => {
     if (!selectedCompany) return
     setIsFetching(true)
     const sppdRes = await getAllSppds(selectedCompany.id)
     const leaveRes = await getAllLeaves(selectedCompany.id)
-    
+
+    const approvalWorkflow = getApprovalHierarchy()
+
     const sppdRequests = (sppdRes.data || []).filter((r: any) => r.status === "menunggu").map((r: any) => ({
       ...r,
       type: "SPPD",
@@ -51,7 +71,7 @@ export default function ApprovalCenterPage() {
       detail: r.purpose,
       date: `${new Date(r.departureDate).toLocaleDateString()} - ${new Date(r.returnDate).toLocaleDateString()}`,
       amount: new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(r.totalCost || 0),
-      workflow: ["Admin", "Manajer", "Wakil Ketua Bidang 1", "Ketua Kowika"],
+      workflow: approvalWorkflow,
       currentStage: 0
     }))
 
@@ -62,7 +82,7 @@ export default function ApprovalCenterPage() {
       detail: r.reason,
       date: `${new Date(r.startDate).toLocaleDateString()} - ${new Date(r.endDate).toLocaleDateString()}`,
       amount: "Pending",
-      workflow: ["Manajer / Direktur"],
+      workflow: approvalWorkflow,
       currentStage: 0
     }))
 
