@@ -38,7 +38,7 @@ export default function ApprovalCenterPage() {
   const [processingId, setProcessingId] = React.useState<string | null>(null)
   const { selectedCompany } = useCompany()
 
-  // Get approval hierarchy based on company
+  // Get approval hierarchy based on company (2-level: internal + cross-company)
   const getApprovalHierarchy = () => {
     if (!selectedCompany) return ['Admin']
     const companyId = selectedCompany.id
@@ -46,14 +46,15 @@ export default function ApprovalCenterPage() {
     const wkiId = '59083ab0-cf7a-4482-9304-16708164ef45'
     const wksId = '279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e'
 
+    // Internal approval → Cross-company approval (WK1 → Ketua Kowika)
     if (companyId === kowikaId) {
-      return ['Admin', 'Wakil Ketua Bidang 1', 'Ketua Kowika']
+      return ['Admin (Andri Eko)', 'Manajer (Fitrah)', 'Wakil Ketua Bidang 1', 'Ketua Kowika']
     } else if (companyId === wkiId) {
-      return ['Admin', 'SPV', 'Direktur']
+      return ['Admin (Yesi Budi)', 'SPV (Riska)', 'Direktur (Jufri)', 'Wakil Ketua Bidang 1', 'Ketua Kowika']
     } else if (companyId === wksId) {
-      return ['Admin', 'Direktur']
+      return ['Admin (Salsa)', 'Direktur (Ardianto)', 'Wakil Ketua Bidang 1', 'Ketua Kowika']
     }
-    return ['Admin', 'Direktur']
+    return ['Admin']
   }
 
   const fetchRequests = React.useCallback(async () => {
