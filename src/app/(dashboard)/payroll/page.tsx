@@ -315,15 +315,21 @@ export default function PayrollPage() {
                           (data.competencyAllowance || 0) + (data.phoneAllowance || 0) + (data.premi || 0) + 
                           (data.overtimeAmount || 0) + (data.overtimeMeal || 0);
 
-    const deductionsBody = [
+    // Separate auto-calculated and manual deductions for clarity
+    const autoDeductionsBody = [
+      ["🤖 Denda Terlambat (Absensi)", formatCurrency(data.lateDeduction || 0)],
+      ["🤖 Potongan Cuti/Izin/Alpha", formatCurrency(data.leaveDeduction || 0)],
+    ].filter(row => row[1] !== formatCurrency(0));
+
+    const manualDeductionsBody = [
       ["Potongan Pinjaman (Koperasi)", formatCurrency(data.loanDeduction || 0)],
       ["Potongan Toko", formatCurrency(data.shopDeduction || 0)],
       ["Jamsostek", formatCurrency(data.jamsostek || 0)],
       ["BPJS Kesehatan", formatCurrency(data.bpjsHealth || 0)],
-      ["Denda Terlambat (Absensi)", formatCurrency(data.lateDeduction || 0)],
-      ["Potongan Izin/Cuti", formatCurrency(data.leaveDeduction || 0)],
       ["Potongan Lainnya", formatCurrency(data.otherDeduction || 0)],
     ].filter(row => row[1] !== formatCurrency(0));
+
+    const deductionsBody = [...autoDeductionsBody, ...manualDeductionsBody];
 
     const totalDeductions = (data.loanDeduction || 0) + (data.shopDeduction || 0) + (data.jamsostek || 0) + 
                             (data.bpjsHealth || 0) + (data.lateDeduction || 0) + (data.leaveDeduction || 0) + 
@@ -787,14 +793,29 @@ export default function PayrollPage() {
                 {/* Deductions Section */}
                 <div>
                   <h4 className="text-lg font-bold mb-4">II. POTONGAN (DEDUCTIONS)</h4>
+
+                  {/* Auto-calculated deductions */}
+                  <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                    <p className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3">🤖 Potongan Otomatis dari Kehadiran</p>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center py-2">
+                        <span className="font-medium text-blue-700">Denda Terlambat (Absensi)</span>
+                        <span className="font-bold text-blue-600">{formatCurrency(selectedPayroll.lateDeduction || 0)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="font-medium text-blue-700">Potongan Cuti/Izin/Alpha</span>
+                        <span className="font-bold text-blue-600">{formatCurrency(selectedPayroll.leaveDeduction || 0)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Manual deductions */}
                   <div className="space-y-3 border-l-4 border-destructive pl-4">
                     {[
                       { label: "Potongan Pinjaman (Koperasi)", value: selectedPayroll.loanDeduction },
                       { label: "Potongan Toko", value: selectedPayroll.shopDeduction },
                       { label: "Jamsostek", value: selectedPayroll.jamsostek },
                       { label: "BPJS Kesehatan", value: selectedPayroll.bpjsHealth },
-                      { label: "Denda Terlambat (Absensi)", value: selectedPayroll.lateDeduction },
-                      { label: "Potongan Izin/Cuti", value: selectedPayroll.leaveDeduction },
                       { label: "Potongan Lainnya", value: selectedPayroll.otherDeduction },
                     ]
                       .filter(item => item.value)
@@ -805,7 +826,9 @@ export default function PayrollPage() {
                         </div>
                       ))}
                   </div>
-                  <div className="flex justify-between items-center mt-4 p-4 bg-destructive/10 rounded-xl font-bold text-lg">
+
+                  {/* Total deductions */}
+                  <div className="flex justify-between items-center mt-6 p-4 bg-destructive/10 rounded-xl font-bold text-lg">
                     <span>TOTAL POTONGAN</span>
                     <span className="text-destructive">
                       {formatCurrency(
@@ -818,6 +841,30 @@ export default function PayrollPage() {
                         (selectedPayroll.otherDeduction || 0)
                       )}
                     </span>
+                  </div>
+
+                  {/* Verification */}
+                  <div className="mt-4 p-3 bg-green-500/5 border border-green-500/20 rounded-lg text-xs">
+                    <p className="text-green-700 font-medium">
+                      ✓ Verifikasi: {formatCurrency(
+                        (selectedPayroll.loanDeduction || 0) +
+                        (selectedPayroll.shopDeduction || 0) +
+                        (selectedPayroll.jamsostek || 0) +
+                        (selectedPayroll.bpjsHealth || 0) +
+                        (selectedPayroll.lateDeduction || 0) +
+                        (selectedPayroll.leaveDeduction || 0) +
+                        (selectedPayroll.otherDeduction || 0)
+                      )} (Total Potongan) = {formatCurrency(selectedPayroll.netSalary || 0)} + {formatCurrency(
+                        (selectedPayroll.basicSalary || 0) +
+                        (selectedPayroll.mealAllowance || 0) +
+                        (selectedPayroll.positionAllowance || 0) +
+                        (selectedPayroll.competencyAllowance || 0) +
+                        (selectedPayroll.phoneAllowance || 0) +
+                        (selectedPayroll.premi || 0) +
+                        (selectedPayroll.overtimeAmount || 0) +
+                        (selectedPayroll.overtimeMeal || 0)
+                      )}
+                    </p>
                   </div>
                 </div>
 
