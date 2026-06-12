@@ -349,9 +349,9 @@ export default function SPPDPage() {
                     <SelectTrigger className="h-16 text-xl bg-accent/10 border-border rounded-2xl px-6 font-bold">
                       <SelectValue placeholder="Pilih Pegawai" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent align="start" alignItemWithTrigger={false} className="w-auto min-w-[340px] max-w-[95vw]">
                       {employeeList.map(emp => (
-                        <SelectItem key={emp.id} value={emp.id}>{emp.name} - {emp.position}</SelectItem>
+                        <SelectItem key={emp.id} value={emp.id} className="pr-10">{emp.name} - {emp.position}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -363,12 +363,12 @@ export default function SPPDPage() {
                       <SelectTrigger className="h-16 text-xs bg-accent/10 border-border rounded-2xl px-6 font-bold whitespace-normal text-left leading-tight">
                         <SelectValue placeholder="Pilih Bandara Asal" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent align="start" alignItemWithTrigger={false} className="w-auto min-w-[340px] max-w-[95vw]">
                         {airports.map(region => (
                           <SelectGroup key={region.region}>
                             <SelectLabel className="px-4 py-2 text-[10px] font-bold text-primary uppercase tracking-widest bg-accent/5">{region.region}</SelectLabel>
                             {region.items.map(airport => (
-                              <SelectItem key={airport} value={airport} className="text-sm py-3">{airport}</SelectItem>
+                              <SelectItem key={airport} value={airport} className="text-sm py-3 pr-10">{airport}</SelectItem>
                             ))}
                           </SelectGroup>
                         ))}
@@ -384,12 +384,12 @@ export default function SPPDPage() {
                       <SelectTrigger className="h-16 text-xs bg-accent/10 border-border rounded-2xl px-6 font-bold whitespace-normal text-left leading-tight">
                         <SelectValue placeholder="Pilih Bandara Tujuan" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent align="start" alignItemWithTrigger={false} className="w-auto min-w-[340px] max-w-[95vw]">
                         {airports.map(region => (
                           <SelectGroup key={region.region}>
                             <SelectLabel className="px-4 py-2 text-[10px] font-bold text-primary uppercase tracking-widest bg-accent/5">{region.region}</SelectLabel>
                             {region.items.map(airport => (
-                              <SelectItem key={airport} value={airport} className="text-sm py-3">{airport}</SelectItem>
+                              <SelectItem key={airport} value={airport} className="text-sm py-3 pr-10">{airport}</SelectItem>
                             ))}
                           </SelectGroup>
                         ))}
@@ -589,18 +589,18 @@ export default function SPPDPage() {
                </TableRow>
             ) : sppdList.map((sppd) => (
               <TableRow key={sppd.id} className="h-32 border-border hover:bg-accent/5 transition-all group">
-                <TableCell className="pl-12">
-                   <div className="flex items-center gap-5">
-                      <div className="h-14 w-14 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                <TableCell className="pl-12 py-4">
+                   <div className="flex items-start gap-5">
+                      <div className="h-14 w-14 shrink-0 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
                          <Plane className="h-7 w-7" />
                       </div>
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-2">
-                           <span className="font-bold text-lg text-foreground leading-tight truncate max-w-[120px]">{sppd.origin}</span>
-                           <ArrowRight className="h-3 w-3 text-muted-foreground/50 shrink-0" />
-                           <span className="font-bold text-lg text-foreground leading-tight truncate max-w-[120px]">{sppd.destination}</span>
+                      <div className="flex flex-col gap-1.5 min-w-0">
+                        <span className="font-bold text-lg text-foreground leading-tight">{sppd.employeeName || "Unknown"}</span>
+                        <div className="flex items-start gap-2 text-sm font-medium text-muted-foreground max-w-[280px]">
+                           <span className="leading-snug break-words">{sppd.origin}</span>
+                           <ArrowRight className="h-4 w-4 text-primary/60 shrink-0 mt-0.5" />
+                           <span className="leading-snug break-words text-foreground">{sppd.destination}</span>
                         </div>
-                        <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{sppd.employeeName || "Unknown"}</span>
                       </div>
                    </div>
                 </TableCell>

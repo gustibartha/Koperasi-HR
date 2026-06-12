@@ -2,14 +2,15 @@
 
 import { db } from "@/db";
 import { attendances, employees } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
-export async function clockIn(employeeId: string, locationGps: string, biometricValid: boolean) {
+export async function clockIn(employeeId: string, locationGps: string, biometricValid: boolean, companyId?: string) {
   try {
     await db.insert(attendances).values({
       id: randomUUID(),
       employeeId,
+      companyId,
       clockIn: new Date(),
       locationGps,
       biometricValid,
@@ -41,8 +42,9 @@ export async function getAttendancesByEmployee(employeeId: string) {
   }
 }
 
-export async function getAllAttendances() {
+export async function getAllAttendances(companyId?: string) {
   try {
+    if (!companyId) return { success: true, data: [] };
     const data = await db.select({
       id: attendances.id,
       employeeName: employees.name,
@@ -52,7 +54,9 @@ export async function getAllAttendances() {
       biometricValid: attendances.biometricValid,
     })
     .from(attendances)
-    .leftJoin(employees, eq(attendances.employeeId, employees.id));
+    .leftJoin(employees, eq(attendances.employeeId, employees.id))
+    .where(eq(attendances.companyId, companyId))
+    .orderBy(desc(attendances.clockIn));
     return { success: true, data };
   } catch (error) {
     return { success: false, message: "Gagal mengambil semua data kehadiran", error };

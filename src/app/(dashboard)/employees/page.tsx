@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { MoreHorizontal, Plus, Search, Phone, Mail, Briefcase, GraduationCap, Calendar, Filter, Upload, Download, FileSpreadsheet, Loader2 } from "lucide-react"
-import { getEmployees, addEmployee, deleteEmployee } from "@/app/actions/employee"
+import { getEmployees, addEmployee, deleteEmployee, updateEmployee } from "@/app/actions/employee"
 import { toast } from "sonner"
 import { useCompany } from "@/context/CompanyContext"
 
@@ -52,6 +52,13 @@ export default function EmployeesPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const { selectedCompany } = useCompany()
 
+  // Edit & View dialog state
+  const [editEmployee, setEditEmployee] = React.useState<any | null>(null)
+  const [viewEmployee, setViewEmployee] = React.useState<any | null>(null)
+  const [editData, setEditData] = React.useState({
+    name: "", email: "", phone: "", position: "", department: "", education: "", joiningYear: "",
+  })
+
   const [formData, setFormData] = React.useState({
     name: "",
     email: "",
@@ -61,6 +68,42 @@ export default function EmployeesPage() {
     education: "",
     joiningYear: "",
   })
+
+  const openEdit = (employee: any) => {
+    setEditEmployee(employee)
+    setEditData({
+      name: employee.name || "",
+      email: employee.email || "",
+      phone: employee.phone || "",
+      position: employee.position || "",
+      department: employee.department || "",
+      education: employee.education || "",
+      joiningYear: employee.joiningYear || "",
+    })
+  }
+
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target
+    setEditData(prev => ({ ...prev, [id.replace("edit-", "")]: value }))
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editEmployee) return
+    if (!editData.name || !editData.email || !editData.position) {
+      alert("Mohon isi Nama, Email, dan Jabatan")
+      return
+    }
+    setIsSubmitting(true)
+    const res = await updateEmployee(editEmployee.id, editData)
+    setIsSubmitting(false)
+    if (res.success) {
+      setEditEmployee(null)
+      fetchEmployees()
+    } else {
+      alert(res.message)
+    }
+  }
 
   const fetchEmployees = React.useCallback(async () => {
     if (!selectedCompany) return
@@ -342,8 +385,8 @@ export default function EmployeesPage() {
                       </Button>} />
                       <DropdownMenuContent align="end" className="bg-popover border-border text-popover-foreground rounded-[2rem] shadow-3xl p-3 min-w-64 border">
                         <DropdownMenuLabel className="px-6 py-4 font-bold text-lg tracking-tight">Employee Actions</DropdownMenuLabel>
-                        <DropdownMenuItem className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">Edit Profile</DropdownMenuItem>
-                        <DropdownMenuItem className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">View Full Record</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEdit(employee)} className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">Edit Profile</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setViewEmployee(employee)} className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">View Full Record</DropdownMenuItem>
                         <DropdownMenuSeparator className="my-3" />
                         <DropdownMenuItem 
                           onClick={() => handleDelete(employee.id)}
@@ -369,6 +412,94 @@ export default function EmployeesPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit Employee Dialog */}
+      <Dialog open={!!editEmployee} onOpenChange={(o) => { if (!o) setEditEmployee(null) }}>
+        <DialogContent className="sm:max-w-[750px] bg-popover border-border rounded-[2.5rem] p-12 shadow-2xl overflow-y-auto max-h-[90vh]">
+          <DialogHeader className="space-y-4">
+            <DialogTitle className="text-4xl font-bold tracking-tight font-serif text-foreground">Edit Employee</DialogTitle>
+            <DialogDescription className="text-xl text-muted-foreground">
+              Perbarui data pegawai {editEmployee?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit}>
+            <div className="grid gap-10 py-10">
+              <div className="grid grid-cols-2 gap-8">
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-name" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Full Name</Label>
+                  <Input id="edit-name" value={editData.name} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" required />
+                </div>
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-phone" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Nomor WA</Label>
+                  <Input id="edit-phone" value={editData.phone} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-8">
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-email" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Email Address</Label>
+                  <Input id="edit-email" type="email" value={editData.email} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" required />
+                </div>
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-education" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Pendidikan</Label>
+                  <Input id="edit-education" value={editData.education} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-8">
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-position" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Jabatan</Label>
+                  <Input id="edit-position" value={editData.position} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary" required />
+                </div>
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-department" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Bagian</Label>
+                  <Input id="edit-department" value={editData.department} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary" />
+                </div>
+                <div className="grid gap-4">
+                  <Label htmlFor="edit-joiningYear" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Tahun Masuk</Label>
+                  <Input id="edit-joiningYear" value={editData.joiningYear} onChange={handleEditChange} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary" />
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="pt-6 gap-6">
+              <Button type="button" variant="outline" onClick={() => setEditEmployee(null)} className="h-16 px-10 text-xl font-bold border-border rounded-2xl hover:bg-accent transition-all">Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="h-16 px-12 text-xl font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">
+                {isSubmitting && <Loader2 className="mr-2 h-6 w-6 animate-spin" />}
+                Update Employee
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Full Record Dialog */}
+      <Dialog open={!!viewEmployee} onOpenChange={(o) => { if (!o) setViewEmployee(null) }}>
+        <DialogContent className="sm:max-w-[600px] bg-popover border-border rounded-[2.5rem] p-12 shadow-2xl">
+          <DialogHeader className="space-y-4">
+            <DialogTitle className="text-4xl font-bold tracking-tight font-serif text-foreground">{viewEmployee?.name}</DialogTitle>
+            <DialogDescription className="text-lg text-muted-foreground">
+              {viewEmployee?.position} • {viewEmployee?.id}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-8 grid grid-cols-2 gap-6">
+            {[
+              { label: "Email", value: viewEmployee?.email, icon: <Mail className="h-5 w-5 text-primary" /> },
+              { label: "Telepon", value: viewEmployee?.phone || "-", icon: <Phone className="h-5 w-5 text-primary" /> },
+              { label: "Jabatan", value: viewEmployee?.position, icon: <Briefcase className="h-5 w-5 text-secondary" /> },
+              { label: "Bagian", value: viewEmployee?.department || "-", icon: <Briefcase className="h-5 w-5 text-secondary" /> },
+              { label: "Pendidikan", value: viewEmployee?.education || "-", icon: <GraduationCap className="h-5 w-5 text-emerald-500" /> },
+              { label: "Tahun Masuk", value: viewEmployee?.joiningYear || "-", icon: <Calendar className="h-5 w-5 text-muted-foreground" /> },
+              { label: "Status", value: viewEmployee?.role === "admin" ? "Admin" : "Karyawan", icon: <Briefcase className="h-5 w-5 text-primary" /> },
+            ].map((row, i) => (
+              <div key={i} className="p-5 rounded-2xl bg-accent/20 border border-border flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">{row.icon} {row.label}</div>
+                <div className="text-lg font-bold text-foreground break-words">{row.value}</div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewEmployee(null)} className="w-full h-14 rounded-xl font-bold text-lg bg-primary">Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

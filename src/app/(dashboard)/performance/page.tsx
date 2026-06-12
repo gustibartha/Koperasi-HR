@@ -34,6 +34,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useCompany } from "@/context/CompanyContext"
 
 
 export default function PerformancePage() {
@@ -42,6 +43,7 @@ export default function PerformancePage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [performanceList, setPerformanceList] = React.useState<any[]>([])
   const [employeeList, setEmployeeList] = React.useState<any[]>([])
+  const { selectedCompany } = useCompany()
 
   const [formData, setFormData] = React.useState({
     employeeId: "",
@@ -51,14 +53,15 @@ export default function PerformancePage() {
   })
 
   const fetchPerformances = React.useCallback(async () => {
+    if (!selectedCompany) return
     setIsFetching(true)
-    const res = await getAllPerformances()
+    const res = await getAllPerformances(selectedCompany.id)
     if (res.success) setPerformanceList(res.data || [])
-    
-    const empRes = await getEmployees()
+
+    const empRes = await getEmployees(selectedCompany.id)
     if (empRes.success) setEmployeeList(empRes.data || [])
     setIsFetching(false)
-  }, [])
+  }, [selectedCompany])
 
   React.useEffect(() => {
     fetchPerformances()
@@ -75,7 +78,8 @@ export default function PerformancePage() {
       formData.employeeId,
       formData.month,
       parseInt(formData.kpiScore),
-      formData.evaluationNote
+      formData.evaluationNote,
+      selectedCompany?.id
     )
     setIsSubmitting(false)
 

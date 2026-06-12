@@ -89,19 +89,25 @@ export default function PayrollPage() {
   })
 
   const fetchPayrolls = React.useCallback(async () => {
-    if (!selectedCompany) return
+    if (!selectedCompany) {
+      setIsFetching(false)
+      return
+    }
     setIsFetching(true)
     const res = await getAllPayrolls(selectedCompany.id)
     if (res.success) setPayrollList(res.data || [])
-    
+
     const empRes = await getEmployees(selectedCompany.id)
     if (empRes.success) setEmployeeList(empRes.data || [])
     setIsFetching(false)
   }, [selectedCompany])
 
+  // Fetch on mount and when selectedCompany changes
   React.useEffect(() => {
-    fetchPayrolls()
-  }, [fetchPayrolls])
+    if (selectedCompany) {
+      fetchPayrolls()
+    }
+  }, [selectedCompany, fetchPayrolls])
 
   const handleGenerate = async () => {
     if (!formData.employeeId || !formData.basicSalary) {
@@ -198,6 +204,13 @@ export default function PayrollPage() {
       maximumFractionDigits: 0,
     }).format(amount)
   }
+
+  // Real aggregate stats
+  const currentMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
+  const currentMonthLabel = new Date().toLocaleString("id-ID", { month: "long", year: "numeric" })
+  const totalPayrollThisMonth = payrollList
+    .filter(p => p.month === currentMonth)
+    .reduce((sum, p) => sum + (p.netSalary || 0), 0)
 
   const downloadPDFSlip = (data: any) => {
     const doc = new jsPDF()
@@ -471,11 +484,11 @@ export default function PayrollPage() {
         <Card className="bg-card border-border shadow-xl p-3 rounded-[2rem] group overflow-hidden relative">
           <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl -mr-8 -mt-8 group-hover:bg-primary/10 transition-all"></div>
           <CardHeader className="pb-4 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-bold text-muted-foreground tracking-[0.2em] uppercase">Total Payroll Mei</CardTitle>
+            <CardTitle className="text-xs font-bold text-muted-foreground tracking-[0.2em] uppercase">Total Payroll {currentMonthLabel.toUpperCase()}</CardTitle>
             <Wallet className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-bold tracking-tighter">{formatCurrency(15300000)}</div>
+            <div className="text-5xl font-bold tracking-tighter">{formatCurrency(totalPayrollThisMonth)}</div>
           </CardContent>
         </Card>
       </div>

@@ -22,6 +22,8 @@ import {
   Loader2
 } from "lucide-react"
 import { clockIn, clockOut, getAllAttendances } from "@/app/actions/attendance"
+import { getEmployees } from "@/app/actions/employee"
+import { useCompany } from "@/context/CompanyContext"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -45,9 +47,23 @@ const OFFICE_LAT = -6.1115135;
 const OFFICE_LNG = 106.7869157;
 const MAX_RADIUS_METERS = 100;
 
-const DUMMY_EMPLOYEE_ID = "2bb7db5b-c648-44c2-8acf-46ab40cb009d" // Admin
+// Operational shift start (07:30). Clock-ins after this are counted as late.
+const SHIFT_START_HOUR = 7;
+const SHIFT_START_MINUTE = 30;
+
+const isSameDay = (a: Date, b: Date) =>
+  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+
+// Returns how many minutes after shift start the clock-in happened (0 if on time)
+const lateMinutesFor = (clockIn: Date) => {
+  const shift = new Date(clockIn)
+  shift.setHours(SHIFT_START_HOUR, SHIFT_START_MINUTE, 0, 0)
+  const diffMs = clockIn.getTime() - shift.getTime()
+  return diffMs > 0 ? Math.round(diffMs / 60000) : 0
+}
 
 export default function AttendancePage() {
+  const { selectedCompany } = useCompany()
   const [time, setTime] = React.useState(new Date())
   const [status, setStatus] = React.useState<"out" | "in">("out")
   const [locationStatus, setLocationStatus] = React.useState<"checking" | "inside" | "outside" | "error">("checking")
@@ -55,52 +71,76 @@ export default function AttendancePage() {
   const [showCamera, setShowCamera] = React.useState(false)
   const [capturedPhoto, setCapturedPhoto] = React.useState<string | null>(null)
   const [attendanceList, setAttendanceList] = React.useState<any[]>([])
+  const [activeEmployeeId, setActiveEmployeeId] = React.useState<string | null>(null)
   const [isFetching, setIsFetching] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
-  
+
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
-  
-  // Weekly Recap Mock Data
-  const weeklyLateRecap = [
-    { day: "Mon", date: "01 May", count: 3 },
-    { day: "Tue", date: "02 May", count: 5 },
-    { day: "Wed", date: "03 May", count: 2 },
-    { day: "Thu", date: "04 May", count: 4 },
-    { day: "Fri", date: "05 May", count: 1 },
-    { day: "Sat", date: "06 May", count: 0 },
-    { day: "Sun", date: "07 May", count: 0 },
-  ]
 
-  const attendanceHistory = attendanceList.map(l => ({
-    id: l.id,
-    name: l.employeeName || "Unknown",
-    in: l.clockIn ? new Date(l.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-",
-    status: l.isLate ? "Late" : "On Time",
-    lateMinutes: 15 // Mock late minutes
-  }))
+  const now = new Date()
+
+  // Derived real metrics
+  const todayLogs = attendanceList.filter(l => l.clockIn && isSameDay(new Date(l.clockIn), now))
+  const presentTodayCount = new Set(todayLogs.map(l => l.employeeName)).size
+  const lateTodayCount = todayLogs.filter(l => lateMinutesFor(new Date(l.clockIn)) > 0).length
+
+  // Real weekly late recap for the last 7 days
+  const weeklyLateRecap = React.useMemo(() => {
+    const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const recap: { day: string; date: string; count: number }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date(todayStart)
+      dayStart.setDate(dayStart.getDate() - i)
+      const dayEnd = new Date(dayStart)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+      const count = attendanceList.filter(l => {
+        if (!l.clockIn) return false
+        const ci = new Date(l.clockIn)
+        return ci >= dayStart && ci < dayEnd && lateMinutesFor(ci) > 0
+      }).length
+      recap.push({
+        day: dayNames[dayStart.getDay()],
+        date: dayStart.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
+        count,
+      })
+    }
+    return recap
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attendanceList])
+
+  const maxLate = Math.max(1, ...weeklyLateRecap.map(d => d.count))
 
   const fetchAttendances = React.useCallback(async () => {
+    if (!selectedCompany) return
     setIsFetching(true)
-    const res = await getAllAttendances()
+    const res = await getAllAttendances(selectedCompany.id)
     if (res.success) {
       setAttendanceList(res.data || [])
-      // Check if already clocked in today (simple logic for demo)
-      const today = new Date().toLocaleDateString()
-      const todayLog = res.data?.find((l: any) => 
-        new Date(l.clockIn).toLocaleDateString() === today && !l.clockOut
+    }
+
+    // Pick a real employee from this company to act as the clock-in subject
+    const empRes = await getEmployees(selectedCompany.id)
+    const firstEmployee = empRes.success && empRes.data && empRes.data.length > 0 ? empRes.data[0] : null
+    setActiveEmployeeId(firstEmployee?.id ?? null)
+
+    // Check if the active employee is already clocked in today (open session)
+    if (firstEmployee && res.success) {
+      const openLog = (res.data || []).find((l: any) =>
+        l.employeeName === firstEmployee.name && l.clockIn && isSameDay(new Date(l.clockIn), new Date()) && !l.clockOut
       )
-      if (todayLog) {
+      if (openLog) {
         setStatus("in")
-        setCurrentAttendanceId(todayLog.id)
+        setCurrentAttendanceId(openLog.id)
       } else {
         setStatus("out")
         setCurrentAttendanceId(null)
       }
     }
     setIsFetching(false)
-  }, [])
+  }, [selectedCompany])
 
   React.useEffect(() => {
     fetchAttendances()
@@ -170,7 +210,13 @@ export default function AttendancePage() {
     setIsSubmitting(true)
     if (status === "out") {
        // Clock In
-       const res = await clockIn(DUMMY_EMPLOYEE_ID, `${OFFICE_LAT},${OFFICE_LNG}`, true)
+       if (!activeEmployeeId) {
+          alert("Belum ada pegawai terdaftar pada entitas ini untuk melakukan absensi.")
+          setIsSubmitting(false)
+          setShowCamera(false)
+          return
+       }
+       const res = await clockIn(activeEmployeeId, `${OFFICE_LAT},${OFFICE_LNG}`, true, selectedCompany?.id)
        if (res.success) {
           fetchAttendances()
        } else {
@@ -211,7 +257,7 @@ export default function AttendancePage() {
              <CalendarCheck className="h-5 w-5 text-emerald-500" />
            </CardHeader>
            <CardContent>
-             <div className="text-5xl font-bold text-foreground tracking-tighter">42</div>
+             <div className="text-5xl font-bold text-foreground tracking-tighter">{isFetching ? "…" : presentTodayCount}</div>
            </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] relative overflow-hidden border-amber-500/20">
@@ -221,7 +267,7 @@ export default function AttendancePage() {
              <Clock className="h-5 w-5 text-amber-500" />
            </CardHeader>
            <CardContent>
-             <div className="text-5xl font-bold text-amber-500 tracking-tighter">04</div>
+             <div className="text-5xl font-bold text-amber-500 tracking-tighter">{isFetching ? "…" : String(lateTodayCount).padStart(2, "0")}</div>
            </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-xl p-3 rounded-[2.5rem] sm:col-span-2 relative overflow-hidden">
@@ -234,9 +280,9 @@ export default function AttendancePage() {
            <CardContent className="flex items-end justify-between h-20 gap-2 px-6">
               {weeklyLateRecap.map((day, idx) => (
                 <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div 
+                  <div
                     className="w-full bg-primary/20 rounded-t-lg group-hover:bg-primary transition-all relative"
-                    style={{ height: `${day.count * 8}px` }}
+                    style={{ height: `${Math.max((day.count / maxLate) * 64, 2)}px` }}
                   >
                     <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">{day.count}</span>
                   </div>
@@ -306,7 +352,7 @@ export default function AttendancePage() {
            <Tabs defaultValue="all" className="w-full">
               <TabsList className="bg-accent/10 border border-border p-1 rounded-2xl h-14 mb-6">
                  <TabsTrigger value="all" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-card data-[state=active]:text-foreground">Recent Activities</TabsTrigger>
-                 <TabsTrigger value="late" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">Today's Late (04)</TabsTrigger>
+                 <TabsTrigger value="late" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">Today's Late ({String(lateTodayCount).padStart(2, "0")})</TabsTrigger>
                  <TabsTrigger value="weekly" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Weekly Recap</TabsTrigger>
               </TabsList>
 
@@ -357,20 +403,26 @@ export default function AttendancePage() {
                  <div className="rounded-[2.5rem] border border-border bg-card shadow-2xl overflow-hidden">
                     <Table>
                        <TableBody>
-                          {attendanceHistory.filter(l => l.status === "Late").map(log => (
+                          {todayLogs.filter(l => lateMinutesFor(new Date(l.clockIn)) > 0).length === 0 ? (
+                             <TableRow>
+                                <TableCell colSpan={3} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Tidak ada keterlambatan hari ini.</TableCell>
+                             </TableRow>
+                          ) : todayLogs.filter(l => lateMinutesFor(new Date(l.clockIn)) > 0).map(log => {
+                             const ci = new Date(log.clockIn)
+                             return (
                              <TableRow key={log.id} className="h-24 border-border hover:bg-amber-500/5 transition-all">
                                 <TableCell className="pl-8">
                                    <div className="flex flex-col">
-                                      <span className="font-bold text-lg">{log.name}</span>
-                                      <span className="text-[10px] font-bold text-amber-500/80 uppercase tracking-widest">Telat {log.lateMinutes} Menit</span>
+                                      <span className="font-bold text-lg">{log.employeeName || "Unknown"}</span>
+                                      <span className="text-[10px] font-bold text-amber-500/80 uppercase tracking-widest">Telat {lateMinutesFor(ci)} Menit</span>
                                    </div>
                                 </TableCell>
-                                <TableCell className="font-mono font-bold text-amber-500">{log.in}</TableCell>
+                                <TableCell className="font-mono font-bold text-amber-500">{ci.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
                                 <TableCell className="text-right pr-8">
                                    <Button variant="ghost" size="sm" className="text-xs font-bold text-muted-foreground hover:text-foreground">View Photo</Button>
                                 </TableCell>
                              </TableRow>
-                          ))}
+                          )})}
                        </TableBody>
                     </Table>
                  </div>
@@ -392,9 +444,9 @@ export default function AttendancePage() {
                              </div>
                              <div className="flex items-center gap-6">
                                 <div className="h-2 w-32 bg-accent/20 rounded-full overflow-hidden">
-                                   <div 
+                                   <div
                                       className="h-full bg-amber-500 rounded-full transition-all duration-1000"
-                                      style={{ width: `${(day.count / 10) * 100}%` }}
+                                      style={{ width: `${(day.count / maxLate) * 100}%` }}
                                    ></div>
                                 </div>
                                 <span className="text-xl font-bold text-amber-500 min-w-[30px] text-right">{day.count}</span>

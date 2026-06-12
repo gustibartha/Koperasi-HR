@@ -47,6 +47,29 @@ export async function addEmployee(data: {
   }
 }
 
+export async function updateEmployee(id: string, data: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  position?: string;
+  department?: string;
+  education?: string;
+  joiningYear?: string;
+}) {
+  try {
+    await db.update(employees)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(employees.id, id));
+    return { success: true, message: "Data pegawai berhasil diperbarui" };
+  } catch (error) {
+    console.error(error);
+    return { success: false, message: "Gagal memperbarui data pegawai. Mungkin email sudah terdaftar." };
+  }
+}
+
 export async function deleteEmployee(id: string) {
   try {
     await db.delete(employees).where(eq(employees.id, id));

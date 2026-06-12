@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { getAllSppds, updateSppdStatus } from "@/app/actions/sppd"
 import { getAllLeaves, updateLeaveStatus } from "@/app/actions/leave"
+import { useCompany } from "@/context/CompanyContext"
 import {
   Dialog,
   DialogContent,
@@ -35,11 +36,13 @@ export default function ApprovalCenterPage() {
   const [requests, setRequests] = React.useState<any[]>([])
   const [isFetching, setIsFetching] = React.useState(true)
   const [processingId, setProcessingId] = React.useState<string | null>(null)
+  const { selectedCompany } = useCompany()
 
   const fetchRequests = React.useCallback(async () => {
+    if (!selectedCompany) return
     setIsFetching(true)
-    const sppdRes = await getAllSppds()
-    const leaveRes = await getAllLeaves()
+    const sppdRes = await getAllSppds(selectedCompany.id)
+    const leaveRes = await getAllLeaves(selectedCompany.id)
     
     const sppdRequests = (sppdRes.data || []).filter((r: any) => r.status === "menunggu").map((r: any) => ({
       ...r,
@@ -63,10 +66,9 @@ export default function ApprovalCenterPage() {
       currentStage: 0
     }))
 
-    console.log("Approval Center - SPPD:", sppdRequests.length, "LEAVE:", leaveRequests.length)
     setRequests([...sppdRequests, ...leaveRequests])
     setIsFetching(false)
-  }, [])
+  }, [selectedCompany])
 
   React.useEffect(() => {
     fetchRequests()

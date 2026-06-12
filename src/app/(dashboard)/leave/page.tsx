@@ -4,7 +4,8 @@ import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
-import { requestLeave, updateLeaveStatus, getAllLeaves } from "@/app/actions/leave"
+import { requestLeave, updateLeaveStatus, getAllLeaves, getLeaveBalances } from "@/app/actions/leave"
+import { ANNUAL_LEAVE_QUOTA } from "@/lib/leave-constants"
 import { getEmployees } from "@/app/actions/employee"
 import {
   Table,
@@ -48,7 +49,10 @@ export default function LeavePage() {
   const [leaveList, setLeaveList] = React.useState<any[]>([])
   const [employeeList, setEmployeeList] = React.useState<any[]>([])
   const [selectedEmployee, setSelectedEmployee] = React.useState<any>(null)
+  const [balances, setBalances] = React.useState<Record<string, { annualUsed: number; sickUsed: number; importantCount: number }>>({})
   const { selectedCompany } = useCompany()
+
+  const getBalance = (empId: string) => balances[empId] || { annualUsed: 0, sickUsed: 0, importantCount: 0 }
 
   const [formData, setFormData] = React.useState({
     employeeId: "",
@@ -63,10 +67,13 @@ export default function LeavePage() {
     setIsFetching(true)
     const res = await getAllLeaves(selectedCompany.id)
     if (res.success) setLeaveList(res.data || [])
-    
+
     const empRes = await getEmployees(selectedCompany.id)
     if (empRes.success) setEmployeeList(empRes.data || [])
-    
+
+    const balRes = await getLeaveBalances(selectedCompany.id)
+    if (balRes.success) setBalances(balRes.data || {})
+
     setIsFetching(false)
   }, [selectedCompany])
 
@@ -109,6 +116,20 @@ export default function LeavePage() {
       alert(res.message)
     }
   }
+
+  // Real aggregate stats
+  const totalAnnualTaken = Object.values(balances).reduce((sum, b) => sum + b.annualUsed, 0)
+  const pendingCount = leaveList.filter((l) => l.status === "menunggu").length
+  const onLeaveTodayCount = (() => {
+    const today = new Date()
+    const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+    return leaveList.filter((l) => {
+      if (l.status !== "disetujui") return false
+      const start = new Date(l.startDate); start.setHours(0, 0, 0, 0)
+      const end = new Date(l.endDate); end.setHours(23, 59, 59, 999)
+      return t >= start.getTime() && t <= end.getTime()
+    }).length
+  })()
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700 pb-20">
@@ -210,8 +231,8 @@ export default function LeavePage() {
             <UserCheck className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-7xl font-bold text-foreground tracking-tighter">42 <span className="text-2xl text-muted-foreground font-medium italic">Hari Diambil</span></div>
-            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-4">Seluruh Karyawan • Mei 2026</p>
+            <div className="text-7xl font-bold text-foreground tracking-tighter">{totalAnnualTaken} <span className="text-2xl text-muted-foreground font-medium italic">Hari Diambil</span></div>
+            <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-4">Seluruh Karyawan • Disetujui</p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border shadow-xl p-3 group relative overflow-hidden rounded-[2.5rem] transition-all hover:border-amber-500/20">
@@ -221,7 +242,7 @@ export default function LeavePage() {
             <Clock className="h-5 w-5 text-amber-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-7xl font-bold text-amber-500 tracking-tighter">05 <span className="text-2xl text-muted-foreground font-medium italic">Pengajuan</span></div>
+            <div className="text-7xl font-bold text-amber-500 tracking-tighter">{String(pendingCount).padStart(2, "0")} <span className="text-2xl text-muted-foreground font-medium italic">Pengajuan</span></div>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-4">Butuh Tindakan Segera</p>
           </CardContent>
         </Card>
@@ -232,7 +253,7 @@ export default function LeavePage() {
             <Users className="h-5 w-5 text-emerald-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-7xl font-bold text-emerald-500 tracking-tighter">02 <span className="text-2xl text-muted-foreground font-medium italic">Pegawai</span></div>
+            <div className="text-7xl font-bold text-emerald-500 tracking-tighter">{String(onLeaveTodayCount).padStart(2, "0")} <span className="text-2xl text-muted-foreground font-medium italic">Pegawai</span></div>
             <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mt-4">Sedang Tidak Di Kantor</p>
           </CardContent>
         </Card>
@@ -286,10 +307,10 @@ export default function LeavePage() {
                    </div>
                 </TableCell>
                 <TableCell className="text-center">
-                   <span className="text-3xl font-bold text-primary tracking-tighter">12 <span className="text-xs text-muted-foreground font-medium">Hari</span></span>
+                   <span className="text-3xl font-bold text-primary tracking-tighter">{ANNUAL_LEAVE_QUOTA - getBalance(emp.id).annualUsed} <span className="text-xs text-muted-foreground font-medium">/ {ANNUAL_LEAVE_QUOTA} Hari</span></span>
                 </TableCell>
-                <TableCell className="text-center text-xl font-bold text-foreground">0 <span className="text-xs text-muted-foreground font-medium">Kali</span></TableCell>
-                <TableCell className="text-center text-xl font-bold text-foreground">0 <span className="text-xs text-muted-foreground font-medium">Hari</span></TableCell>
+                <TableCell className="text-center text-xl font-bold text-foreground">{getBalance(emp.id).importantCount} <span className="text-xs text-muted-foreground font-medium">Kali</span></TableCell>
+                <TableCell className="text-center text-xl font-bold text-foreground">{getBalance(emp.id).sickUsed} <span className="text-xs text-muted-foreground font-medium">Hari</span></TableCell>
                 <TableCell className="text-right pr-12">
                    <Dialog>
                      <DialogTrigger render={<Button variant="outline" className="h-12 px-6 font-bold border-border rounded-xl hover:bg-primary hover:text-white transition-all">
@@ -305,16 +326,20 @@ export default function LeavePage() {
                         
                         <div className="py-8 space-y-6">
                            <div className="flex justify-between items-center p-6 bg-primary/5 rounded-2xl border border-primary/10">
-                              <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Cuti Tahunan</span>
-                              <span className="text-3xl font-bold text-primary">12 / 12 <span className="text-sm font-medium">Hari</span></span>
+                              <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Sisa Cuti Tahunan</span>
+                              <span className="text-3xl font-bold text-primary">{ANNUAL_LEAVE_QUOTA - getBalance(emp.id).annualUsed} / {ANNUAL_LEAVE_QUOTA} <span className="text-sm font-medium">Hari</span></span>
+                           </div>
+                           <div className="flex justify-between items-center p-6 bg-accent/20 rounded-2xl border border-border">
+                              <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Cuti Tahunan Terpakai</span>
+                              <span className="text-3xl font-bold text-foreground">{getBalance(emp.id).annualUsed} <span className="text-sm font-medium">Hari</span></span>
                            </div>
                            <div className="flex justify-between items-center p-6 bg-accent/20 rounded-2xl border border-border">
                               <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Izin Alasan Penting</span>
-                              <span className="text-3xl font-bold text-foreground">0 <span className="text-sm font-medium">Kali</span></span>
+                              <span className="text-3xl font-bold text-foreground">{getBalance(emp.id).importantCount} <span className="text-sm font-medium">Kali</span></span>
                            </div>
                            <div className="flex justify-between items-center p-6 bg-accent/20 rounded-2xl border border-border">
                               <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Izin Sakit</span>
-                              <span className="text-3xl font-bold text-foreground">0 <span className="text-sm font-medium">Hari</span></span>
+                              <span className="text-3xl font-bold text-foreground">{getBalance(emp.id).sickUsed} <span className="text-sm font-medium">Hari</span></span>
                            </div>
                         </div>
 
