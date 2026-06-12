@@ -847,14 +847,6 @@ export default function PayrollPage() {
                   <div className="mt-4 p-3 bg-green-500/5 border border-green-500/20 rounded-lg text-xs">
                     <p className="text-green-700 font-medium">
                       ✓ Verifikasi: {formatCurrency(
-                        (selectedPayroll.loanDeduction || 0) +
-                        (selectedPayroll.shopDeduction || 0) +
-                        (selectedPayroll.jamsostek || 0) +
-                        (selectedPayroll.bpjsHealth || 0) +
-                        (selectedPayroll.lateDeduction || 0) +
-                        (selectedPayroll.leaveDeduction || 0) +
-                        (selectedPayroll.otherDeduction || 0)
-                      )} (Total Potongan) = {formatCurrency(selectedPayroll.netSalary || 0)} + {formatCurrency(
                         (selectedPayroll.basicSalary || 0) +
                         (selectedPayroll.mealAllowance || 0) +
                         (selectedPayroll.positionAllowance || 0) +
@@ -863,7 +855,15 @@ export default function PayrollPage() {
                         (selectedPayroll.premi || 0) +
                         (selectedPayroll.overtimeAmount || 0) +
                         (selectedPayroll.overtimeMeal || 0)
-                      )}
+                      )} (Gaji Bruto) - {formatCurrency(
+                        (selectedPayroll.loanDeduction || 0) +
+                        (selectedPayroll.shopDeduction || 0) +
+                        (selectedPayroll.jamsostek || 0) +
+                        (selectedPayroll.bpjsHealth || 0) +
+                        (selectedPayroll.lateDeduction || 0) +
+                        (selectedPayroll.leaveDeduction || 0) +
+                        (selectedPayroll.otherDeduction || 0)
+                      )} (Potongan) = {formatCurrency(selectedPayroll.netSalary || 0)} ✓
                     </p>
                   </div>
                 </div>
