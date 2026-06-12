@@ -215,7 +215,8 @@ export default function PayrollPage() {
   }
 
   // Parse formatted string back to number
-  const parseNumber = (val: string) => {
+  const parseNumber = (val: string | undefined) => {
+    if (!val) return 0
     return parseInt(val.replace(/\./g, "")) || 0
   }
 
