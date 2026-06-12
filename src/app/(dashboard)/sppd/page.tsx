@@ -601,12 +601,12 @@ export default function SPPDPage() {
                       <div className="h-14 w-14 shrink-0 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all">
                          <Plane className="h-7 w-7" />
                       </div>
-                      <div className="flex flex-col gap-1.5 min-w-0">
+                      <div className="flex flex-col gap-2 min-w-0 flex-1">
                         <span className="font-bold text-lg text-foreground leading-tight">{sppd.employeeName || "Unknown"}</span>
-                        <div className="flex items-start gap-2 text-sm font-medium text-muted-foreground max-w-[280px]">
-                           <span className="leading-snug break-words">{sppd.origin}</span>
-                           <ArrowRight className="h-4 w-4 text-primary/60 shrink-0 mt-0.5" />
-                           <span className="leading-snug break-words text-foreground">{sppd.destination}</span>
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground flex-wrap">
+                           <span className="break-words max-w-full">{sppd.origin}</span>
+                           <ArrowRight className="h-4 w-4 text-primary/60 shrink-0 flex-none" />
+                           <span className="break-words max-w-full text-foreground">{sppd.destination}</span>
                         </div>
                       </div>
                    </div>
