@@ -42,9 +42,9 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// OFFICE COORDINATES
-const OFFICE_LAT = -6.1115135;
-const OFFICE_LNG = 106.7869157;
+// OFFICE COORDINATES - Hotel Aston Pluit
+const OFFICE_LAT = -6.1328;
+const OFFICE_LNG = 106.8235;
 const MAX_RADIUS_METERS = 100;
 
 // Operational shift start (07:30). Clock-ins after this are counted as late.
