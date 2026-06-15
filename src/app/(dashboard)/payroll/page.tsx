@@ -20,6 +20,7 @@ import {
   Search,
   Wallet,
   Eye,
+  Lock,
   Loader2
 } from "lucide-react"
 import { 
@@ -70,6 +71,13 @@ export default function PayrollPage() {
   const [selectedPayroll, setSelectedPayroll] = React.useState<any>(null)
   const [openViewSlip, setOpenViewSlip] = React.useState(false)
   const { selectedCompany } = useCompany()
+
+  // Role of the logged-in user (set at login). Only admins may open confidential slips.
+  const [userRole, setUserRole] = React.useState<string>("user")
+  React.useEffect(() => {
+    setUserRole(localStorage.getItem("userRole") || "user")
+  }, [])
+  const isAdmin = userRole === "admin" || userRole === "superadmin"
 
   // State for form inputs
   const [formData, setFormData] = React.useState({
@@ -278,12 +286,24 @@ export default function PayrollPage() {
     .filter(p => p.month === currentMonth)
     .reduce((sum, p) => sum + (p.netSalary || 0), 0)
 
+  // A payroll slip may only be opened once it is fully approved (status "disetujui"),
+  // up to the final approver (Ketua Kowika). Admins may open it regardless.
+  const canOpenSlip = (data: any) => isAdmin || data?.status === "disetujui"
+
   const handleViewSlip = (data: any) => {
+    if (!canOpenSlip(data)) {
+      alert("Slip gaji bersifat RAHASIA. Hanya dapat dibuka setelah disetujui hingga Ketua Kowika, atau oleh admin.")
+      return
+    }
     setSelectedPayroll(data)
     setOpenViewSlip(true)
   }
 
   const downloadPDFSlip = (data: any) => {
+    if (!canOpenSlip(data)) {
+      alert("Slip gaji bersifat RAHASIA. Hanya dapat dibuka setelah disetujui hingga Ketua Kowika, atau oleh admin.")
+      return
+    }
     const doc = new jsPDF()
     doc.setFontSize(22)
     doc.setTextColor(40, 40, 40)
@@ -294,6 +314,13 @@ export default function PayrollPage() {
     doc.line(20, 35, 190, 35)
     doc.setFontSize(16)
     doc.text("SLIP GAJI KARYAWAN", 105, 45, { align: "center" })
+    // Confidential marking
+    doc.setFontSize(10)
+    doc.setTextColor(153, 27, 27)
+    doc.setFont("helvetica", "bold")
+    doc.text("RAHASIA / CONFIDENTIAL", 105, 51, { align: "center" })
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(40, 40, 40)
     doc.setFontSize(11)
     doc.text(`Nama: ${data.employeeName}`, 20, 60)
     doc.text(`Jabatan: Staff`, 20, 67)
@@ -377,6 +404,16 @@ export default function PayrollPage() {
     doc.setFont("helvetica", "normal")
     doc.text("Dibuat Secara Otomatis oleh Sistem HR Kowika", 105, finalY + 45, { align: "center" })
     doc.text(`Tanggal Cetak: ${new Date().toLocaleString()}`, 105, finalY + 50, { align: "center" })
+    doc.setFontSize(8)
+    doc.setTextColor(153, 27, 27)
+    doc.text("DOKUMEN RAHASIA — Dilarang menyebarluaskan tanpa izin.", 105, finalY + 56, { align: "center" })
+
+    // Diagonal confidential watermark (drawn last, very light so it reads as a watermark)
+    doc.setTextColor(235, 220, 220)
+    doc.setFontSize(55)
+    doc.setFont("helvetica", "bold")
+    doc.text("CONFIDENTIAL", 105, 170, { align: "center", angle: 35 })
+
     doc.save(`Slip_Gaji_${data.employeeName.replace(" ", "_")}_${data.month.replace(" ", "_")}.pdf`)
   }
 
@@ -703,15 +740,16 @@ export default function PayrollPage() {
                       variant="outline"
                       size="icon"
                       className="h-14 w-14 rounded-2xl border-border hover:bg-accent transition-all"
+                      title={canOpenSlip(item) ? "Lihat Slip" : "Terkunci — perlu disetujui hingga Ketua Kowika"}
                     >
-                       <Eye className="h-6 w-6" />
+                       {canOpenSlip(item) ? <Eye className="h-6 w-6" /> : <Lock className="h-6 w-6" />}
                     </Button>
-                    <Button 
-                      onClick={() => downloadPDFSlip(item)} 
-                      variant="ghost" 
+                    <Button
+                      onClick={() => downloadPDFSlip(item)}
+                      variant="ghost"
                       className="h-14 px-8 font-bold text-lg rounded-2xl hover:bg-primary/10 hover:text-primary transition-all"
                     >
-                      <FileDown className="h-6 w-6 mr-3" /> Slip
+                      {canOpenSlip(item) ? <FileDown className="h-6 w-6 mr-3" /> : <Lock className="h-6 w-6 mr-3" />} Slip
                     </Button>
                   </div>
                 </TableCell>
@@ -725,18 +763,30 @@ export default function PayrollPage() {
       <Dialog open={openViewSlip} onOpenChange={setOpenViewSlip}>
         <DialogContent className="sm:max-w-[900px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
           <DialogHeader className="p-10 pb-6 bg-accent/5 border-b border-border">
-            <DialogTitle className="text-3xl font-bold font-serif">Slip Gaji Karyawan</DialogTitle>
+            <div className="flex items-center gap-3 flex-wrap">
+              <DialogTitle className="text-3xl font-bold font-serif">Slip Gaji Karyawan</DialogTitle>
+              <Badge className="bg-destructive/10 text-destructive border border-destructive/20 font-bold text-[10px] tracking-[0.2em] uppercase px-3 py-1">
+                <ShieldCheck className="h-3 w-3 mr-1.5" /> Rahasia / Confidential
+              </Badge>
+            </div>
             {selectedPayroll && <DialogDescription className="text-lg mt-2">{selectedPayroll.employeeName} - {selectedPayroll.month}</DialogDescription>}
           </DialogHeader>
 
-          <div className="overflow-y-auto flex-1 p-10 space-y-8">
+          <div className="relative overflow-y-auto flex-1 p-10 space-y-8">
+            {/* Confidential diagonal watermark */}
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden z-0">
+              <span className="text-destructive/[0.06] font-bold text-[5rem] md:text-[7rem] tracking-widest -rotate-[30deg] whitespace-nowrap select-none">
+                CONFIDENTIAL
+              </span>
+            </div>
             {selectedPayroll && (
-              <>
+              <div className="relative z-10 space-y-8">
                 {/* Header */}
                 <div className="text-center border-b-2 border-border pb-6">
                   <h2 className="text-2xl font-bold">{selectedCompany?.name}</h2>
                   <p className="text-sm text-muted-foreground mt-1">{selectedCompany?.address}</p>
                   <h3 className="text-xl font-bold mt-4">SLIP GAJI KARYAWAN</h3>
+                  <p className="text-xs font-bold text-destructive uppercase tracking-[0.3em] mt-2">Dokumen Rahasia / Confidential</p>
                 </div>
 
                 {/* Employee & Period Info */}
@@ -889,7 +939,7 @@ export default function PayrollPage() {
                 <p className="text-xs text-center text-muted-foreground pt-4">
                   Dibuat secara otomatis oleh Sistem HR Kowika pada {new Date().toLocaleString()}
                 </p>
-              </>
+              </div>
             )}
           </div>
 

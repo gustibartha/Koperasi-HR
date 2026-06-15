@@ -26,7 +26,8 @@ import {
   Printer,
   XCircle,
   Edit2,
-  Eye
+  Eye,
+  Lock
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
@@ -107,6 +108,15 @@ export default function SPPDPage() {
   const [selectedSppd, setSelectedSppd] = React.useState<any>(null)
   const [openViewDetail, setOpenViewDetail] = React.useState(false)
   const { selectedCompany } = useCompany()
+
+  // Role of the logged-in user. SPPD slips open only after full approval, except for admins.
+  const [userRole, setUserRole] = React.useState<string>("user")
+  React.useEffect(() => {
+    setUserRole(localStorage.getItem("userRole") || "user")
+  }, [])
+  const isAdmin = userRole === "admin" || userRole === "superadmin"
+  // Fully approved = passed the whole chain up to Ketua Kowika (status "disetujui").
+  const canOpenSppd = (sppd: any) => isAdmin || sppd?.status === "disetujui"
 
   const [formData, setFormData] = React.useState({
     employeeId: "",
@@ -205,11 +215,19 @@ export default function SPPDPage() {
   }
 
   const handleViewDetail = (sppd: any) => {
+    if (!canOpenSppd(sppd)) {
+      alert("SPPD hanya dapat dibuka setelah disetujui hingga Ketua Kowika, atau oleh admin.")
+      return
+    }
     setSelectedSppd(sppd)
     setOpenViewDetail(true)
   }
 
   const handleDownload = (sppd: any) => {
+    if (!canOpenSppd(sppd)) {
+      alert("Slip SPPD hanya dapat dibuka setelah disetujui hingga Ketua Kowika, atau oleh admin.")
+      return
+    }
     const printWindow = window.open('', '_blank')
     if (printWindow) {
       const budget = sppd.totalCost || 0
@@ -644,6 +662,10 @@ export default function SPPDPage() {
                       >
                          {downloadingId === sppd.id ? (
                            <Loader2 className="h-6 w-6 animate-spin" />
+                         ) : !canOpenSppd(sppd) ? (
+                           <>
+                             <Lock className="h-6 w-6 mr-2" /> Slip
+                           </>
                          ) : (
                            <>
                              <FileDown className="h-6 w-6 mr-2" /> Slip

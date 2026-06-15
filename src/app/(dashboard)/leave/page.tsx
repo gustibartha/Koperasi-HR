@@ -175,21 +175,21 @@ export default function LeavePage() {
                   <SelectTrigger className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus:ring-primary font-bold">
                     <SelectValue placeholder="Pilih kategori" />
                   </SelectTrigger>
-                  <SelectContent side="bottom" sideOffset={8} align="start" alignItemWithTrigger={false} className="bg-popover border-border rounded-2xl shadow-3xl min-w-[450px] max-h-[500px] p-2 z-[60]">
+                  <SelectContent side="bottom" sideOffset={8} align="start" alignItemWithTrigger={false} className="bg-popover border-border rounded-2xl shadow-3xl min-w-[450px] p-2 z-[60]">
                     <SelectGroup>
-                      <SelectLabel className="text-primary font-bold px-5 py-3 text-sm uppercase tracking-widest">Cuti</SelectLabel>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="annual">Cuti Tahunan</SelectItem>
+                      <SelectLabel className="text-primary font-bold px-5 py-2 text-sm uppercase tracking-widest">Cuti</SelectLabel>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="annual">Cuti Tahunan</SelectItem>
                     </SelectGroup>
                     <SelectGroup>
-                      <SelectLabel className="text-primary font-bold px-5 py-3 text-sm uppercase tracking-widest border-t border-border mt-3">Izin Sakit & Kesehatan</SelectLabel>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="sick_normal">Izin Sakit (Bukan Kecelakaan Kerja)</SelectItem>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="menstrual">Izin Istirahat Haid (Hari 1 & 2)</SelectItem>
+                      <SelectLabel className="text-primary font-bold px-5 py-2 text-sm uppercase tracking-widest border-t border-border mt-2">Izin Sakit & Kesehatan</SelectLabel>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="sick_normal">Izin Sakit (Bukan Kecelakaan Kerja)</SelectItem>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="menstrual">Izin Istirahat Haid (Hari 1 & 2)</SelectItem>
                     </SelectGroup>
                     <SelectGroup>
-                      <SelectLabel className="text-primary font-bold px-5 py-3 text-sm uppercase tracking-widest border-t border-border mt-3">Izin Alasan Penting</SelectLabel>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="marriage_self">Pernikahan Karyawan (5 Hari)</SelectItem>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="birth_wife">Istri Melahirkan (2 Hari)</SelectItem>
-                      <SelectItem className="text-lg py-4 px-5 rounded-xl font-bold" value="death_immediate">Keluarga Inti Meninggal (2 Hari)</SelectItem>
+                      <SelectLabel className="text-primary font-bold px-5 py-2 text-sm uppercase tracking-widest border-t border-border mt-2">Izin Alasan Penting</SelectLabel>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="marriage_self">Pernikahan Karyawan (5 Hari)</SelectItem>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="birth_wife">Istri Melahirkan (2 Hari)</SelectItem>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="death_immediate">Keluarga Inti Meninggal (2 Hari)</SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
