@@ -43,10 +43,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 // OFFICE COORDINATES - Hotel Aston Pluit (Jl. Pluit Selatan Raya No.1)
-const OFFICE_LAT = -6.1264;
-const OFFICE_LNG = 106.7906;
+const OFFICE_LAT = -6.1237253;
+const OFFICE_LNG = 106.7938983;
 // Radius diperbesar agar toleran terhadap ketidakakuratan GPS (terutama di dalam gedung)
-const MAX_RADIUS_METERS = 300;
+const MAX_RADIUS_METERS = 500;
 
 // Operational shift start (07:30). Clock-ins after this are counted as late.
 const SHIFT_START_HOUR = 7;
