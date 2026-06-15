@@ -74,7 +74,14 @@ export default function LoginPage() {
         if (user && user.password === password) {
           localStorage.setItem("userRole", user.role)
           localStorage.setItem("userName", user.name)
-          localStorage.setItem("selectedCompanyId", selectedCompanyId)
+          // Tenant admins are locked to their own entity; superadmin can switch freely.
+          if (user.allowedCompanyId) {
+            localStorage.setItem("allowedCompanyId", user.allowedCompanyId)
+            localStorage.setItem("selectedCompanyId", user.allowedCompanyId)
+          } else {
+            localStorage.removeItem("allowedCompanyId")
+            localStorage.setItem("selectedCompanyId", selectedCompanyId)
+          }
           router.replace(user.redirect)
         } else {
           setError("Email atau Password salah. Silakan coba lagi.")

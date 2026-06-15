@@ -28,17 +28,22 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
     async function init() {
       const res = await getCompanies();
       if (res.success && res.data) {
-        setCompanies(res.data);
-        
-        // Try to load from localStorage or default to the first one
+        // Tenant admins are locked to a single entity; superadmin sees all.
+        const allowedId = localStorage.getItem("allowedCompanyId");
+        const visible = allowedId
+          ? res.data.filter(c => c.id === allowedId)
+          : res.data;
+        setCompanies(visible);
+
+        // Try to load from localStorage or default to the first visible one
         const savedId = localStorage.getItem("selectedCompanyId");
-        const found = res.data.find(c => c.id === savedId);
-        
+        const found = visible.find(c => c.id === savedId);
+
         if (found) {
           setSelectedCompanyState(found);
-        } else if (res.data.length > 0) {
-          setSelectedCompanyState(res.data[0]);
-          localStorage.setItem("selectedCompanyId", res.data[0].id);
+        } else if (visible.length > 0) {
+          setSelectedCompanyState(visible[0]);
+          localStorage.setItem("selectedCompanyId", visible[0].id);
         }
       }
       setIsLoading(false);
