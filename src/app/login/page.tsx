@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -25,7 +24,6 @@ import {
 } from "@/components/ui/select"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
   const [error, setError] = React.useState("")
@@ -59,40 +57,39 @@ export default function LoginPage() {
     setError("")
     setLoading(true)
 
-    // Simulate login logic
-    setTimeout(() => {
-      try {
-        const users: Record<string, { password: string; role: string; name: string; redirect: string, allowedCompanyId?: string }> = {
-          "admin@koperasi.com": { password: "admin123", role: "superadmin", name: "Admin HR", redirect: "/dashboard" },
-          "jufri.a60@gmail.com": { password: "admin123", role: "admin", name: "M. Jufri Arfah (Direktur)", redirect: "/dashboard", allowedCompanyId: "59083ab0-cf7a-4482-9304-16708164ef45" },
-          "ardiarkanto@gmail.com": { password: "admin123", role: "admin", name: "Ardianto (Direktur)", redirect: "/dashboard", allowedCompanyId: "279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e" },
-          "fitrahginanjar@gmail.com": { password: "admin123", role: "admin", name: "Fitrah Ginanjar (Manajer)", redirect: "/dashboard", allowedCompanyId: "22841c61-fa3d-4b79-8922-b50ece65ca70" },
-          "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Demo", redirect: "/attendance" },
-        }
+    try {
+      const users: Record<string, { password: string; role: string; name: string; redirect: string, allowedCompanyId?: string }> = {
+        "admin@koperasi.com": { password: "admin123", role: "superadmin", name: "Admin HR", redirect: "/dashboard" },
+        "jufri.a60@gmail.com": { password: "admin123", role: "admin", name: "M. Jufri Arfah (Direktur)", redirect: "/dashboard", allowedCompanyId: "59083ab0-cf7a-4482-9304-16708164ef45" },
+        "ardiarkanto@gmail.com": { password: "admin123", role: "admin", name: "Ardianto (Direktur)", redirect: "/dashboard", allowedCompanyId: "279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e" },
+        "fitrahginanjar@gmail.com": { password: "admin123", role: "admin", name: "Fitrah Ginanjar (Manajer)", redirect: "/dashboard", allowedCompanyId: "22841c61-fa3d-4b79-8922-b50ece65ca70" },
+        "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Demo", redirect: "/attendance" },
+      }
 
-        const user = users[email]
-        if (user && user.password === password) {
-          localStorage.setItem("userRole", user.role)
-          localStorage.setItem("userName", user.name)
-          // Tenant admins are locked to their own entity; superadmin can switch freely.
-          if (user.allowedCompanyId) {
-            localStorage.setItem("allowedCompanyId", user.allowedCompanyId)
-            localStorage.setItem("selectedCompanyId", user.allowedCompanyId)
-          } else {
-            localStorage.removeItem("allowedCompanyId")
-            localStorage.setItem("selectedCompanyId", selectedCompanyId)
-          }
-          router.replace(user.redirect)
+      const user = users[email]
+      if (user && user.password === password) {
+        localStorage.setItem("userRole", user.role)
+        localStorage.setItem("userName", user.name)
+        // Tenant admins are locked to their own entity; superadmin can switch freely.
+        if (user.allowedCompanyId) {
+          localStorage.setItem("allowedCompanyId", user.allowedCompanyId)
+          localStorage.setItem("selectedCompanyId", user.allowedCompanyId)
         } else {
-          setError("Email atau Password salah. Silakan coba lagi.")
-          setLoading(false)
+          localStorage.removeItem("allowedCompanyId")
+          localStorage.setItem("selectedCompanyId", selectedCompanyId)
         }
-      } catch (e) {
-        console.error("Auth error:", e)
-        setError("Terjadi kesalahan sistem. Silakan coba lagi.")
+        // Full navigation (not client-side) so CompanyProvider re-reads localStorage
+        // and immediately shows the correct entity — no manual refresh needed.
+        window.location.assign(user.redirect)
+      } else {
+        setError("Email atau Password salah. Silakan coba lagi.")
         setLoading(false)
       }
-    }, 800)
+    } catch (e) {
+      console.error("Auth error:", e)
+      setError("Terjadi kesalahan sistem. Silakan coba lagi.")
+      setLoading(false)
+    }
   }
 
   return (
