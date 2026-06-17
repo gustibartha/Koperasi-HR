@@ -45,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // VALID ATTENDANCE LOCATIONS - clock-in is allowed within the radius of ANY point.
 // Each point has its own radius (meters).
 const OFFICE_LOCATIONS = [
-  { name: "PT Wira Karya Sinergi", lat: -6.1115987, lng: 106.7849319, radius: 750 },
+  { name: "PT Wira Karya Sinergi", lat: -6.1116535, lng: 106.7882926, radius: 100 },
   { name: "Titik Absen Tambahan", lat: -6.1112548, lng: 106.7826671, radius: 100 },
 ];
 
