@@ -16,6 +16,7 @@ export const employees = pgTable("employees", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   phone: text("phone"),
+  password: text("password"), // Hashed credential for employee self-login (salt:hash)
   role: text("role", { enum: ["admin", "karyawan"] }).notNull().default("karyawan"),
   position: text("position").notNull(),
   department: text("department"),

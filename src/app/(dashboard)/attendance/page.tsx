@@ -87,6 +87,16 @@ export default function AttendancePage() {
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
   const [showArea, setShowArea] = React.useState(false)
 
+  // Logged-in identity. Regular employees are locked to clock in as themselves;
+  // admins may pick any employee (shared/kiosk use).
+  const [userRole, setUserRole] = React.useState<string>("user")
+  const [loginEmployeeId, setLoginEmployeeId] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    setUserRole(localStorage.getItem("userRole") || "user")
+    setLoginEmployeeId(localStorage.getItem("employeeId"))
+  }, [])
+  const isAdminUser = userRole === "admin" || userRole === "superadmin"
+
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
   // The valid location the user is currently closest to (used when recording GPS).
@@ -141,8 +151,11 @@ export default function AttendancePage() {
     // Default the clock-in subject to the logged-in user (matched by name),
     // otherwise leave it empty so the person must pick who they are.
     setActiveEmployeeId(prev => {
+      // A logged-in employee is always locked to their own record.
+      const storedEmpId = localStorage.getItem("employeeId")
+      if (storedEmpId && emps.some((e: any) => e.id === storedEmpId)) return storedEmpId
       if (prev && emps.some((e: any) => e.id === prev)) return prev
-      // Normalize names: lowercase, drop parenthetical role suffix e.g. "(Manajer)".
+      // Otherwise match by name (e.g. director accounts), dropping any "(role)" suffix.
       const norm = (s: string) => (s || "").replace(/\(.*?\)/g, "").trim().toLowerCase()
       const userName = norm(localStorage.getItem("userName") || "")
       const matched = userName ? emps.find((e: any) => norm(e.name) === userName) : null
@@ -354,18 +367,26 @@ export default function AttendancePage() {
           <div className="flex flex-col items-center gap-8 w-full max-w-sm z-10">
             <div className="w-full space-y-2">
                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Absen sebagai</span>
-               <Select value={activeEmployeeId ?? ""} onValueChange={(val) => setActiveEmployeeId(val)}>
-                  <SelectTrigger className="h-14 w-full bg-accent/20 border-border rounded-2xl px-5 font-bold text-base">
-                     <SelectValue placeholder="Pilih nama pegawai...">
-                        {(value: any) => employeeList.find(e => e.id === value)?.name ?? "Pilih nama pegawai..."}
-                     </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-border bg-popover max-h-[300px]">
-                     {employeeList.map(emp => (
-                        <SelectItem key={emp.id} value={emp.id} className="font-bold py-3 pr-8">{emp.name}</SelectItem>
-                     ))}
-                  </SelectContent>
-               </Select>
+               {isAdminUser ? (
+                  <Select value={activeEmployeeId ?? ""} onValueChange={(val) => setActiveEmployeeId(val)}>
+                     <SelectTrigger className="h-14 w-full bg-accent/20 border-border rounded-2xl px-5 font-bold text-base">
+                        <SelectValue placeholder="Pilih nama pegawai...">
+                           {(value: any) => employeeList.find(e => e.id === value)?.name ?? "Pilih nama pegawai..."}
+                        </SelectValue>
+                     </SelectTrigger>
+                     <SelectContent className="rounded-2xl border-border bg-popover max-h-[300px]">
+                        {employeeList.map(emp => (
+                           <SelectItem key={emp.id} value={emp.id} className="font-bold py-3 pr-8">{emp.name}</SelectItem>
+                        ))}
+                     </SelectContent>
+                  </Select>
+               ) : (
+                  <div className="h-14 w-full bg-accent/20 border border-border rounded-2xl px-5 flex items-center font-bold text-base">
+                     {employeeList.find(e => e.id === activeEmployeeId)?.name
+                        || localStorage.getItem("userName")
+                        || "—"}
+                  </div>
+               )}
             </div>
             <div className="grid grid-cols-2 gap-4 w-full">
                <div className={`flex flex-col items-center gap-3 p-5 rounded-3xl border transition-all ${

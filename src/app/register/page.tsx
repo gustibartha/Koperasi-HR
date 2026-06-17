@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, Building2, User } from "lucide-react"
 import { getCompanies } from "@/app/actions/company"
+import { registerEmployee } from "@/app/actions/auth"
 import {
   Select,
   SelectContent,
@@ -25,7 +25,6 @@ import {
 } from "@/components/ui/select"
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -56,7 +55,7 @@ export default function RegisterPage() {
     setSelectedCompany(found)
   }
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
 
@@ -64,26 +63,36 @@ export default function RegisterPage() {
       setError("Password dan Konfirmasi Password tidak cocok.")
       return
     }
+    if (!selectedCompanyId) {
+      setError("Silakan pilih entitas perusahaan.")
+      return
+    }
 
     setLoading(true)
 
-    // Simulate registration logic
-    setTimeout(() => {
-      try {
-        // Here we would typically send data to the backend
-        // For now, we simulate a successful registration and auto-login
-        localStorage.setItem("userRole", "user")
-        localStorage.setItem("userName", name)
-        localStorage.setItem("selectedCompanyId", selectedCompanyId)
-        
-        // Redirect to dashboard/attendance
-        router.replace("/attendance")
-      } catch (e) {
-        console.error("Auth error:", e)
-        setError("Terjadi kesalahan sistem. Silakan coba lagi.")
-        setLoading(false)
+    try {
+      const res = await registerEmployee({ name, email, password, companyId: selectedCompanyId })
+      if (res.success && res.employee) {
+        const emp = res.employee
+        const role = emp.role === "admin" ? "admin" : "user"
+        localStorage.setItem("userRole", role)
+        localStorage.setItem("userName", emp.name)
+        localStorage.setItem("employeeId", emp.id)
+        if (emp.companyId) {
+          localStorage.setItem("allowedCompanyId", emp.companyId)
+          localStorage.setItem("selectedCompanyId", emp.companyId)
+        }
+        // Full navigation so CompanyProvider re-reads localStorage immediately.
+        window.location.assign(role === "admin" ? "/dashboard" : "/attendance")
+        return
       }
-    }, 1200)
+      setError(res.message || "Gagal mendaftar. Silakan coba lagi.")
+      setLoading(false)
+    } catch (e) {
+      console.error("Auth error:", e)
+      setError("Terjadi kesalahan sistem. Silakan coba lagi.")
+      setLoading(false)
+    }
   }
 
   return (

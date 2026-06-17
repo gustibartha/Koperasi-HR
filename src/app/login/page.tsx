@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AlertCircle, Building2 } from "lucide-react"
 import { getCompanies } from "@/app/actions/company"
+import { loginEmployee } from "@/app/actions/auth"
 import {
   Select,
   SelectContent,
@@ -52,12 +53,13 @@ export default function LoginPage() {
     setSelectedCompany(found)
   }
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
 
     try {
+      const key = email.trim().toLowerCase()
       const users: Record<string, { password: string; role: string; name: string; redirect: string, allowedCompanyId?: string }> = {
         "admin@koperasi.com": { password: "admin123", role: "superadmin", name: "Admin HR", redirect: "/dashboard" },
         "jufri.a60@gmail.com": { password: "admin123", role: "admin", name: "M. Jufri Arfah (Direktur)", redirect: "/dashboard", allowedCompanyId: "59083ab0-cf7a-4482-9304-16708164ef45" },
@@ -66,10 +68,11 @@ export default function LoginPage() {
         "user@koperasi.com": { password: "user123", role: "user", name: "Pegawai Demo", redirect: "/attendance" },
       }
 
-      const user = users[email]
+      const user = users[key]
       if (user && user.password === password) {
         localStorage.setItem("userRole", user.role)
         localStorage.setItem("userName", user.name)
+        localStorage.removeItem("employeeId")
         // Tenant admins are locked to their own entity; superadmin can switch freely.
         if (user.allowedCompanyId) {
           localStorage.setItem("allowedCompanyId", user.allowedCompanyId)
@@ -81,10 +84,28 @@ export default function LoginPage() {
         // Full navigation (not client-side) so CompanyProvider re-reads localStorage
         // and immediately shows the correct entity — no manual refresh needed.
         window.location.assign(user.redirect)
-      } else {
-        setError("Email atau Password salah. Silakan coba lagi.")
-        setLoading(false)
+        return
       }
+
+      // Fall back to database login for registered employees.
+      const res = await loginEmployee(key, password)
+      if (res.success && res.employee) {
+        const emp = res.employee
+        const role = emp.role === "admin" ? "admin" : "user"
+        localStorage.setItem("userRole", role)
+        localStorage.setItem("userName", emp.name)
+        localStorage.setItem("employeeId", emp.id)
+        if (emp.companyId) {
+          // Employees are locked to their own entity.
+          localStorage.setItem("allowedCompanyId", emp.companyId)
+          localStorage.setItem("selectedCompanyId", emp.companyId)
+        }
+        window.location.assign(role === "admin" ? "/dashboard" : "/attendance")
+        return
+      }
+
+      setError(res.message || "Email atau Password salah. Silakan coba lagi.")
+      setLoading(false)
     } catch (e) {
       console.error("Auth error:", e)
       setError("Terjadi kesalahan sistem. Silakan coba lagi.")
