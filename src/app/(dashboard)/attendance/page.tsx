@@ -42,11 +42,12 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-// OFFICE COORDINATES - Hotel Aston Pluit (Jl. Pluit Selatan Raya No.1)
-const OFFICE_LAT = -6.1116322;
-const OFFICE_LNG = 106.7858102;
-// Radius diperbesar agar toleran terhadap ketidakakuratan GPS (terutama di dalam gedung)
-const MAX_RADIUS_METERS = 750;
+// VALID ATTENDANCE LOCATIONS - clock-in is allowed within the radius of ANY point.
+// Each point has its own radius (meters).
+const OFFICE_LOCATIONS = [
+  { name: "Hotel Aston Pluit (Jl. Pluit Selatan Raya No.1)", lat: -6.1116322, lng: 106.7858102, radius: 750 },
+  { name: "Titik Absen Tambahan", lat: -6.1112548, lng: 106.7826671, radius: 100 },
+];
 
 // Operational shift start (07:30). Clock-ins after this are counted as late.
 const SHIFT_START_HOUR = 7;
@@ -79,6 +80,8 @@ export default function AttendancePage() {
 
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
+  // The valid location the user is currently closest to (used when recording GPS).
+  const matchedLocationRef = React.useRef(OFFICE_LOCATIONS[0])
 
   const now = new Date()
 
@@ -165,9 +168,21 @@ export default function AttendancePage() {
     }
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const d = calculateDistance(position.coords.latitude, position.coords.longitude, OFFICE_LAT, OFFICE_LNG);
-        setDistance(Math.round(d));
-        setLocationStatus(d <= MAX_RADIUS_METERS ? "inside" : "outside");
+        // Evaluate every valid location; inside if within ANY point's radius.
+        let nearest = OFFICE_LOCATIONS[0];
+        let nearestDistance = Infinity;
+        let isInsideAny = false;
+        for (const loc of OFFICE_LOCATIONS) {
+          const d = calculateDistance(position.coords.latitude, position.coords.longitude, loc.lat, loc.lng);
+          if (d < nearestDistance) {
+            nearestDistance = d;
+            nearest = loc;
+          }
+          if (d <= loc.radius) isInsideAny = true;
+        }
+        matchedLocationRef.current = nearest;
+        setDistance(Math.round(nearestDistance));
+        setLocationStatus(isInsideAny ? "inside" : "outside");
       },
       () => setLocationStatus("error"),
       { enableHighAccuracy: true }
@@ -217,7 +232,8 @@ export default function AttendancePage() {
           setShowCamera(false)
           return
        }
-       const res = await clockIn(activeEmployeeId, `${OFFICE_LAT},${OFFICE_LNG}`, true, selectedCompany?.id)
+       const matched = matchedLocationRef.current
+       const res = await clockIn(activeEmployeeId, `${matched.lat},${matched.lng}`, true, selectedCompany?.id)
        if (res.success) {
           fetchAttendances()
        } else {
