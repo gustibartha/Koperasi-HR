@@ -45,7 +45,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // VALID ATTENDANCE LOCATIONS - clock-in is allowed within the radius of ANY point.
 // Each point has its own radius (meters).
 const OFFICE_LOCATIONS = [
-  { name: "Hotel Aston Pluit (Jl. Pluit Selatan Raya No.1)", lat: -6.1116322, lng: 106.7858102, radius: 750 },
+  { name: "PT Wira Karya Sinergi", lat: -6.1115987, lng: 106.7849319, radius: 750 },
   { name: "Titik Absen Tambahan", lat: -6.1112548, lng: 106.7826671, radius: 100 },
 ];
 
@@ -77,6 +77,7 @@ export default function AttendancePage() {
   const [isFetching, setIsFetching] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
+  const [showArea, setShowArea] = React.useState(false)
 
   const videoRef = React.useRef<HTMLVideoElement>(null)
   const canvasRef = React.useRef<HTMLCanvasElement>(null)
@@ -346,6 +347,20 @@ export default function AttendancePage() {
               </div>
             )}
 
+            {locationStatus === "inside" && distance !== null && (
+              <p className="text-xs font-bold text-emerald-500 uppercase tracking-widest text-center">
+                Jarak ke titik terdekat: {distance}m
+              </p>
+            )}
+
+            <Button
+              variant="outline"
+              onClick={() => setShowArea(true)}
+              className="w-full h-12 rounded-2xl font-bold border-border hover:bg-accent transition-all text-sm"
+            >
+              <MapPinned className="h-5 w-5 mr-2" /> Lihat Area Absen
+            </Button>
+
             <Button
               size="lg"
               disabled={locationStatus !== "inside" || isSubmitting}
@@ -379,14 +394,14 @@ export default function AttendancePage() {
                         <TableBody>
                            {isFetching ? (
                               <TableRow>
-                                 <TableCell colSpan={3} className="h-40 text-center">
+                                 <TableCell colSpan={4} className="h-40 text-center">
                                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                                     <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
                                  </TableCell>
                               </TableRow>
                            ) : attendanceList.length === 0 ? (
                               <TableRow>
-                                 <TableCell colSpan={3} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada aktivitas.</TableCell>
+                                 <TableCell colSpan={4} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada aktivitas.</TableCell>
                               </TableRow>
                            ) : attendanceList.map(log => (
                               <TableRow key={log.id} className="h-24 border-border hover:bg-accent/5 transition-all">
@@ -408,6 +423,20 @@ export default function AttendancePage() {
                                     }`}>
                                        {log.clockOut ? "Selesai" : "Aktif"}
                                     </Badge>
+                                 </TableCell>
+                                 <TableCell className="pr-8 text-right">
+                                    {log.locationGps ? (
+                                       <a
+                                          href={`https://www.google.com/maps?q=${log.locationGps}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                                       >
+                                          <MapPin className="h-4 w-4" /> Lokasi
+                                       </a>
+                                    ) : (
+                                       <span className="text-xs text-muted-foreground">-</span>
+                                    )}
                                  </TableCell>
                               </TableRow>
                            ))}
@@ -476,6 +505,49 @@ export default function AttendancePage() {
            </Tabs>
         </div>
       </div>
+
+      {/* Area Absen Dialog - shows valid check-in locations on a map */}
+      <Dialog open={showArea} onOpenChange={setShowArea}>
+        <DialogContent className="sm:max-w-[700px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-8 pb-4 bg-accent/5 border-b border-border">
+            <DialogTitle className="text-2xl font-bold font-serif flex items-center gap-3">
+              <MapPinned className="h-6 w-6 text-primary" /> Area Absen yang Valid
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 p-8 space-y-8">
+            <p className="text-sm text-muted-foreground font-medium">
+              Absen hanya dapat dilakukan jika berada dalam radius salah satu titik berikut.
+            </p>
+            {OFFICE_LOCATIONS.map((loc, idx) => (
+              <div key={idx} className="rounded-2xl border border-border overflow-hidden bg-card">
+                <div className="p-5 flex items-start justify-between gap-4 border-b border-border">
+                  <div>
+                    <p className="font-bold text-lg text-foreground">{loc.name}</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">
+                      Radius {loc.radius}m • {loc.lat}, {loc.lng}
+                    </p>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${loc.lat},${loc.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs font-bold text-primary hover:underline whitespace-nowrap"
+                  >
+                    Buka di Maps ↗
+                  </a>
+                </div>
+                <iframe
+                  title={loc.name}
+                  src={`https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=16&output=embed`}
+                  className="w-full h-64 border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Camera Dialog Omitted but preserved logic ... */}
       <Dialog open={showCamera} onOpenChange={setShowCamera}>
