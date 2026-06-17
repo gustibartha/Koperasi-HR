@@ -41,6 +41,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // VALID ATTENDANCE LOCATIONS - clock-in is allowed within the radius of ANY point.
 // Each point has its own radius (meters).
@@ -73,6 +80,7 @@ export default function AttendancePage() {
   const [showCamera, setShowCamera] = React.useState(false)
   const [capturedPhoto, setCapturedPhoto] = React.useState<string | null>(null)
   const [attendanceList, setAttendanceList] = React.useState<any[]>([])
+  const [employeeList, setEmployeeList] = React.useState<any[]>([])
   const [activeEmployeeId, setActiveEmployeeId] = React.useState<string | null>(null)
   const [isFetching, setIsFetching] = React.useState(true)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -126,26 +134,45 @@ export default function AttendancePage() {
       setAttendanceList(res.data || [])
     }
 
-    // Pick a real employee from this company to act as the clock-in subject
     const empRes = await getEmployees(selectedCompany.id)
-    const firstEmployee = empRes.success && empRes.data && empRes.data.length > 0 ? empRes.data[0] : null
-    setActiveEmployeeId(firstEmployee?.id ?? null)
+    const emps = empRes.success && empRes.data ? empRes.data : []
+    setEmployeeList(emps)
 
-    // Check if the active employee is already clocked in today (open session)
-    if (firstEmployee && res.success) {
-      const openLog = (res.data || []).find((l: any) =>
-        l.employeeName === firstEmployee.name && l.clockIn && isSameDay(new Date(l.clockIn), new Date()) && !l.clockOut
-      )
-      if (openLog) {
-        setStatus("in")
-        setCurrentAttendanceId(openLog.id)
-      } else {
-        setStatus("out")
-        setCurrentAttendanceId(null)
-      }
-    }
+    // Default the clock-in subject to the logged-in user (matched by name),
+    // otherwise leave it empty so the person must pick who they are.
+    setActiveEmployeeId(prev => {
+      if (prev && emps.some((e: any) => e.id === prev)) return prev
+      // Normalize names: lowercase, drop parenthetical role suffix e.g. "(Manajer)".
+      const norm = (s: string) => (s || "").replace(/\(.*?\)/g, "").trim().toLowerCase()
+      const userName = norm(localStorage.getItem("userName") || "")
+      const matched = userName ? emps.find((e: any) => norm(e.name) === userName) : null
+      return matched?.id ?? null
+    })
+
     setIsFetching(false)
   }, [selectedCompany])
+
+  // Whenever the selected employee or the attendance list changes, detect
+  // whether that person already has an open (not-yet-clocked-out) session today.
+  React.useEffect(() => {
+    if (!activeEmployeeId) {
+      setStatus("out")
+      setCurrentAttendanceId(null)
+      return
+    }
+    const emp = employeeList.find(e => e.id === activeEmployeeId)
+    if (!emp) return
+    const openLog = attendanceList.find((l: any) =>
+      l.employeeName === emp.name && l.clockIn && isSameDay(new Date(l.clockIn), new Date()) && !l.clockOut
+    )
+    if (openLog) {
+      setStatus("in")
+      setCurrentAttendanceId(openLog.id)
+    } else {
+      setStatus("out")
+      setCurrentAttendanceId(null)
+    }
+  }, [activeEmployeeId, attendanceList, employeeList])
 
   React.useEffect(() => {
     fetchAttendances()
@@ -325,6 +352,21 @@ export default function AttendancePage() {
           </div>
 
           <div className="flex flex-col items-center gap-8 w-full max-w-sm z-10">
+            <div className="w-full space-y-2">
+               <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Absen sebagai</span>
+               <Select value={activeEmployeeId ?? ""} onValueChange={(val) => setActiveEmployeeId(val)}>
+                  <SelectTrigger className="h-14 w-full bg-accent/20 border-border rounded-2xl px-5 font-bold text-base">
+                     <SelectValue placeholder="Pilih nama pegawai...">
+                        {(value: any) => employeeList.find(e => e.id === value)?.name ?? "Pilih nama pegawai..."}
+                     </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-border bg-popover max-h-[300px]">
+                     {employeeList.map(emp => (
+                        <SelectItem key={emp.id} value={emp.id} className="font-bold py-3 pr-8">{emp.name}</SelectItem>
+                     ))}
+                  </SelectContent>
+               </Select>
+            </div>
             <div className="grid grid-cols-2 gap-4 w-full">
                <div className={`flex flex-col items-center gap-3 p-5 rounded-3xl border transition-all ${
                   locationStatus === "inside" ? "bg-emerald-500/10 border-emerald-500/30" : "bg-destructive/10 border-destructive/30"
@@ -363,9 +405,9 @@ export default function AttendancePage() {
 
             <Button
               size="lg"
-              disabled={locationStatus !== "inside" || isSubmitting}
+              disabled={locationStatus !== "inside" || isSubmitting || !activeEmployeeId}
               className={`w-full h-24 text-2xl font-bold rounded-[2rem] shadow-2xl transition-all hover:scale-[1.02] ${
-                locationStatus !== "inside" ? "opacity-50 grayscale cursor-not-allowed" :
+                (locationStatus !== "inside" || !activeEmployeeId) ? "opacity-50 grayscale cursor-not-allowed" :
                 status === "out" ? "bg-primary text-primary-foreground shadow-primary/20" : "bg-destructive text-destructive-foreground shadow-destructive/20"
               }`}
               onClick={startCamera}
