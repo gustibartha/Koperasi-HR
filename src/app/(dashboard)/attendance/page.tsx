@@ -86,6 +86,7 @@ export default function AttendancePage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
   const [showArea, setShowArea] = React.useState(false)
+  const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null } | null>(null)
 
   // Logged-in identity. Regular employees are locked to clock in as themselves;
   // admins may pick any employee (shared/kiosk use).
@@ -253,10 +254,15 @@ export default function AttendancePage() {
     if (videoRef.current && canvasRef.current) {
       const context = canvasRef.current.getContext("2d")
       if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth
-        canvasRef.current.height = videoRef.current.videoHeight
-        context.drawImage(videoRef.current, 0, 0)
-        setCapturedPhoto(canvasRef.current.toDataURL("image/png"))
+        // Downscale to keep the stored data URL small (max width 480, JPEG).
+        const vw = videoRef.current.videoWidth || 640
+        const vh = videoRef.current.videoHeight || 480
+        const maxW = 480
+        const scale = Math.min(1, maxW / vw)
+        canvasRef.current.width = Math.round(vw * scale)
+        canvasRef.current.height = Math.round(vh * scale)
+        context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
+        setCapturedPhoto(canvasRef.current.toDataURL("image/jpeg", 0.7))
         const stream = videoRef.current.srcObject as MediaStream
         stream.getTracks().forEach(track => track.stop())
       }
@@ -274,7 +280,7 @@ export default function AttendancePage() {
           return
        }
        const matched = matchedLocationRef.current
-       const res = await clockIn(activeEmployeeId, `${matched.lat},${matched.lng}`, true, selectedCompany?.id)
+       const res = await clockIn(activeEmployeeId, `${matched.lat},${matched.lng}`, true, selectedCompany?.id, capturedPhoto ?? undefined)
        if (res.success) {
           fetchAttendances()
        } else {
@@ -528,7 +534,12 @@ export default function AttendancePage() {
                                 </TableCell>
                                 <TableCell className="font-mono font-bold text-amber-500">{ci.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</TableCell>
                                 <TableCell className="text-right pr-8">
-                                   <Button variant="ghost" size="sm" className="text-xs font-bold text-muted-foreground hover:text-foreground">View Photo</Button>
+                                   <Button
+                                     variant="ghost"
+                                     size="sm"
+                                     onClick={() => setViewPhoto({ name: log.employeeName || "Unknown", time: ci.toLocaleString(), photo: log.photo || null })}
+                                     className="text-xs font-bold text-muted-foreground hover:text-foreground"
+                                   >View Photo</Button>
                                 </TableCell>
                              </TableRow>
                           )})}
@@ -608,6 +619,29 @@ export default function AttendancePage() {
                 />
               </div>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Photo Dialog - shows the face-verification photo taken at clock-in */}
+      <Dialog open={!!viewPhoto} onOpenChange={(o) => { if (!o) setViewPhoto(null) }}>
+        <DialogContent className="sm:max-w-[480px] bg-popover border-border rounded-[2.5rem] p-8 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">{viewPhoto?.name}</DialogTitle>
+          </DialogHeader>
+          {viewPhoto?.time && (
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest -mt-2">{viewPhoto.time}</p>
+          )}
+          <div className="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl mt-2">
+            {viewPhoto?.photo ? (
+              <img src={viewPhoto.photo} alt={`Foto absen ${viewPhoto.name}`} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground p-6">
+                <Camera className="h-10 w-10 opacity-40" />
+                <p className="text-sm font-bold">Tidak ada foto untuk absensi ini.</p>
+                <p className="text-[10px] uppercase tracking-widest">Absensi lama direkam sebelum fitur foto aktif.</p>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

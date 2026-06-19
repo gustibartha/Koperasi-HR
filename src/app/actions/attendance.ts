@@ -5,7 +5,7 @@ import { attendances, employees } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
-export async function clockIn(employeeId: string, locationGps: string, biometricValid: boolean, companyId?: string) {
+export async function clockIn(employeeId: string, locationGps: string, biometricValid: boolean, companyId?: string, photo?: string) {
   try {
     await db.insert(attendances).values({
       id: randomUUID(),
@@ -13,6 +13,7 @@ export async function clockIn(employeeId: string, locationGps: string, biometric
       companyId,
       clockIn: new Date(),
       locationGps,
+      photo,
       biometricValid,
       createdAt: new Date(),
     });
@@ -51,6 +52,7 @@ export async function getAllAttendances(companyId?: string) {
       clockIn: attendances.clockIn,
       clockOut: attendances.clockOut,
       locationGps: attendances.locationGps,
+      photo: attendances.photo,
       biometricValid: attendances.biometricValid,
     })
     .from(attendances)

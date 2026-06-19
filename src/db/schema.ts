@@ -35,6 +35,7 @@ export const attendances = pgTable("attendances", {
   clockIn: timestamp("clock_in", { mode: "date" }),
   clockOut: timestamp("clock_out", { mode: "date" }),
   locationGps: text("location_gps"),
+  photo: text("photo"), // Face-verification photo at clock-in (data URL, downscaled JPEG)
   biometricValid: boolean("biometric_valid"), // SQLite boolean is 0/1
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
 });
