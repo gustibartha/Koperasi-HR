@@ -53,7 +53,7 @@ import {
 // Each point has its own radius (meters).
 const OFFICE_LOCATIONS = [
   { name: "PT Wira Karya Sinergi", lat: -6.1116535, lng: 106.7882926, radius: 100 },
-  { name: "Titik Absen Tambahan", lat: -6.1112548, lng: 106.7826671, radius: 100 },
+  { name: "Titik Absen Tambahan", lat: -6.1113735, lng: 106.7825969, radius: 150 },
 ];
 
 // Operational shift start (07:30). Clock-ins after this are counted as late.
