@@ -21,9 +21,15 @@ export async function getDashboardStats(companyId?: string) {
       };
     }
 
-    // Start of today (local server time)
+    // Start of today in WIB (UTC+7), so counts match the attendance page which
+    // uses the user's local (Indonesian) browser time. Computing this in server
+    // local time (UTC on Vercel) would put "today" on the wrong calendar day.
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const wibNow = new Date(now.getTime() + WIB_OFFSET_MS);
+    const startOfToday = new Date(
+      Date.UTC(wibNow.getUTCFullYear(), wibNow.getUTCMonth(), wibNow.getUTCDate()) - WIB_OFFSET_MS
+    );
 
     const [empRows, attRows, leaveRows, perfRows] = await Promise.all([
       db.select({ id: employees.id }).from(employees).where(eq(employees.companyId, companyId)),
@@ -68,16 +74,17 @@ export async function getDashboardStats(companyId?: string) {
 
     // Weekly attendance for the last 7 days (count of attendance records per day)
     const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+    const DAY_MS = 24 * 60 * 60 * 1000;
     const weeklyAttendance: { label: string; count: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const dayStart = new Date(startOfToday);
-      dayStart.setDate(dayStart.getDate() - i);
-      const dayEnd = new Date(dayStart);
-      dayEnd.setDate(dayEnd.getDate() + 1);
+      const dayStart = new Date(startOfToday.getTime() - i * DAY_MS);
+      const dayEnd = new Date(dayStart.getTime() + DAY_MS);
       const count = attRows.filter(
         (a) => a.clockIn && new Date(a.clockIn) >= dayStart && new Date(a.clockIn) < dayEnd
       ).length;
-      weeklyAttendance.push({ label: dayNames[dayStart.getDay()], count });
+      // Day-of-week in WIB
+      const wibDay = new Date(dayStart.getTime() + WIB_OFFSET_MS).getUTCDay();
+      weeklyAttendance.push({ label: dayNames[wibDay], count });
     }
 
     const recentLeaves = leaveRows.slice(0, 4);
