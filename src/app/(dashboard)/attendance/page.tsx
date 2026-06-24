@@ -54,6 +54,7 @@ import {
 const OFFICE_LOCATIONS = [
   { name: "PT Wira Karya Sinergi", lat: -6.1116535, lng: 106.7882926, radius: 100 },
   { name: "Titik Absen Tambahan", lat: -6.1113735, lng: 106.7825969, radius: 150 },
+  { name: "Titik Absen Tambahan 2", lat: -6.1090199, lng: 106.7754303, radius: 100 },
 ];
 
 // Operational shift start (07:30). Clock-ins after this are counted as late.
