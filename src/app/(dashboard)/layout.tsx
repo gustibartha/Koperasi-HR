@@ -14,7 +14,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb"
 
-const adminOnlyRoutes = ["/dashboard", "/employees", "/payroll", "/settings"]
+const adminOnlyRoutes = ["/dashboard", "/employees", "/payroll", "/attendance-recap", "/settings"]
 
 export default function DashboardLayout({
   children,

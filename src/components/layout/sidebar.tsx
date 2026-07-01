@@ -13,6 +13,7 @@ import {
   FileText,
   Plane,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react"
 
 import {
@@ -75,6 +76,12 @@ const allMenuItems = [
     url: "/leave",
     icon: Calendar,
     roles: ["superadmin", "admin", "user"],
+  },
+  {
+    title: "Rekap Absensi",
+    url: "/attendance-recap",
+    icon: ClipboardList,
+    roles: ["superadmin", "admin"],
   },
   {
     title: "Payroll",
