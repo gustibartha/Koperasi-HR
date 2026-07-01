@@ -9,8 +9,9 @@ import { eq, and, gte, lte } from "drizzle-orm";
 const DEDUCTION_PER_MINUTE = 5000; // Rp per minute late
 const ALPHA_RATE = 150000; // Rp per absent (alpha) working day
 const LEAVE_RATE = 100000; // Rp per approved paid-leave/permit day (annual/important/unpaid)
-const SHIFT_START_HOUR = 8;
-const SHIFT_START_MINUTE = 0;
+// Late deduction starts at shift start 07:30, matching the attendance page display.
+const SHIFT_START_HOUR = 7;
+const SHIFT_START_MINUTE = 30;
 
 export type RecapRow = {
   employeeId: string;

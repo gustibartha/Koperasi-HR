@@ -29,9 +29,10 @@ export async function calculateAndGeneratePayroll(
 
     let totalLateMinutes = 0;
     let totalActualWorkHours = 0;
-    const SHIFT_START_HOUR = 8;
-    const SHIFT_START_MINUTE = 0;
-    const DEDUCTION_PER_MINUTE = 5000; 
+    // Late deduction starts at shift start 07:30, matching the attendance page display.
+    const SHIFT_START_HOUR = 7;
+    const SHIFT_START_MINUTE = 30;
+    const DEDUCTION_PER_MINUTE = 5000;
 
     monthAttendances.forEach(att => {
       if (att.clockIn) {
