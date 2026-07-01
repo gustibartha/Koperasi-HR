@@ -89,6 +89,11 @@ export default function AttendancePage() {
   const [showArea, setShowArea] = React.useState(false)
   const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null } | null>(null)
 
+  // Attendance log is shown one day at a time; default to today, filterable to past days.
+  const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  const [filterDate, setFilterDate] = React.useState(() => toDateStr(new Date()))
+  const isToday = filterDate === toDateStr(new Date())
+
   // Logged-in identity. Regular employees are locked to clock in as themselves;
   // admins may pick any employee (shared/kiosk use).
   const [userRole, setUserRole] = React.useState<string>("user")
@@ -110,6 +115,13 @@ export default function AttendancePage() {
   const todayLogs = attendanceList.filter(l => l.clockIn && isSameDay(new Date(l.clockIn), now))
   const presentTodayCount = new Set(todayLogs.map(l => l.employeeName)).size
   const lateTodayCount = todayLogs.filter(l => lateMinutesFor(new Date(l.clockIn)) > 0).length
+
+  // Logs for the selected day only (the activity table is per-day, filterable).
+  const dayLogs = React.useMemo(() => {
+    const [y, m, d] = filterDate.split("-").map(Number)
+    const ref = new Date(y, (m || 1) - 1, d || 1)
+    return attendanceList.filter(l => l.clockIn && isSameDay(new Date(l.clockIn), ref))
+  }, [attendanceList, filterDate])
 
   // Real weekly late recap for the last 7 days
   const weeklyLateRecap = React.useMemo(() => {
@@ -453,13 +465,37 @@ export default function AttendancePage() {
         <div className="lg:col-span-3 flex flex-col gap-8">
            <Tabs defaultValue="all" className="w-full">
               <TabsList className="bg-accent/10 border border-border p-1 rounded-2xl h-14 mb-6">
-                 <TabsTrigger value="all" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-card data-[state=active]:text-foreground">Recent Activities</TabsTrigger>
+                 <TabsTrigger value="all" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-card data-[state=active]:text-foreground">Absensi Harian</TabsTrigger>
                  <TabsTrigger value="late" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">Today's Late ({String(lateTodayCount).padStart(2, "0")})</TabsTrigger>
                  <TabsTrigger value="weekly" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Weekly Recap</TabsTrigger>
               </TabsList>
 
               <TabsContent value="all">
                  <div className="rounded-[2.5rem] border border-border bg-card shadow-2xl overflow-hidden">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-border bg-accent/5">
+                       <div className="flex flex-col">
+                          <span className="font-bold text-lg text-foreground">
+                             {isToday ? "Absensi Hari Ini" : "Absensi Tanggal Terpilih"}
+                          </span>
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                             {new Date(filterDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })} • {dayLogs.length} entri
+                          </span>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <Input
+                             type="date"
+                             value={filterDate}
+                             max={toDateStr(new Date())}
+                             onChange={(e) => setFilterDate(e.target.value || toDateStr(new Date()))}
+                             className="h-11 w-auto bg-accent/20 border-border rounded-xl px-4 font-bold"
+                          />
+                          {!isToday && (
+                             <Button variant="outline" onClick={() => setFilterDate(toDateStr(new Date()))} className="h-11 rounded-xl font-bold border-border text-xs">
+                                Hari Ini
+                             </Button>
+                          )}
+                       </div>
+                    </div>
                     <Table>
                         <TableBody>
                            {isFetching ? (
@@ -469,11 +505,11 @@ export default function AttendancePage() {
                                     <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
                                  </TableCell>
                               </TableRow>
-                           ) : attendanceList.length === 0 ? (
+                           ) : dayLogs.length === 0 ? (
                               <TableRow>
-                                 <TableCell colSpan={4} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada aktivitas.</TableCell>
+                                 <TableCell colSpan={4} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Tidak ada absensi pada tanggal ini.</TableCell>
                               </TableRow>
-                           ) : attendanceList.map(log => (
+                           ) : dayLogs.map(log => (
                               <TableRow key={log.id} className="h-24 border-border hover:bg-accent/5 transition-all">
                                  <TableCell className="pl-8">
                                     <div className="flex flex-col">
