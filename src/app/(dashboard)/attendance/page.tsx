@@ -509,25 +509,36 @@ export default function AttendancePage() {
                               <TableRow>
                                  <TableCell colSpan={4} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Tidak ada absensi pada tanggal ini.</TableCell>
                               </TableRow>
-                           ) : dayLogs.map(log => (
-                              <TableRow key={log.id} className="h-24 border-border hover:bg-accent/5 transition-all">
-                                 <TableCell className="pl-8">
+                           ) : dayLogs.map(log => {
+                              const late = log.clockIn ? lateMinutesFor(new Date(log.clockIn)) : 0
+                              return (
+                              <TableRow key={log.id} className={`h-24 border-border transition-all ${late > 0 ? "bg-destructive/5 hover:bg-destructive/10" : "hover:bg-accent/5"}`}>
+                                 <TableCell className={`pl-8 ${late > 0 ? "border-l-4 border-destructive" : ""}`}>
                                     <div className="flex flex-col">
-                                       <span className="font-bold text-lg">{log.employeeName || "Unknown"}</span>
+                                       <span className="font-bold text-lg flex items-center gap-2">
+                                          {log.employeeName || "Unknown"}
+                                          {late > 0 && (
+                                             <Badge className="bg-destructive/10 text-destructive border border-destructive/20 font-bold text-[9px] tracking-widest uppercase px-2 py-0.5 rounded-full">
+                                                Telat {late} mnt
+                                             </Badge>
+                                          )}
+                                       </span>
                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                           {log.clockIn ? new Date(log.clockIn).toLocaleDateString() : "-"}
                                        </span>
                                     </div>
                                  </TableCell>
-                                 <TableCell className="font-mono font-bold">
-                                    {log.clockIn ? new Date(log.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"} 
+                                 <TableCell className={`font-mono font-bold ${late > 0 ? "text-destructive" : ""}`}>
+                                    {log.clockIn ? new Date(log.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
                                     {log.clockOut ? ` - ${new Date(log.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ""}
                                  </TableCell>
                                  <TableCell>
                                     <Badge className={`px-4 py-1 rounded-full font-bold uppercase text-[9px] tracking-widest ${
-                                       "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                                       late > 0
+                                          ? "bg-destructive/10 text-destructive border-destructive/20"
+                                          : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
                                     }`}>
-                                       {log.clockOut ? "Selesai" : "Aktif"}
+                                       {late > 0 ? "Telat" : log.clockOut ? "Selesai" : "Aktif"}
                                     </Badge>
                                  </TableCell>
                                  <TableCell className="pr-8 text-right">
@@ -545,7 +556,8 @@ export default function AttendancePage() {
                                     )}
                                  </TableCell>
                               </TableRow>
-                           ))}
+                              )
+                           })}
                         </TableBody>
                     </Table>
                  </div>
