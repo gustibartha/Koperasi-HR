@@ -13,6 +13,16 @@ const LEAVE_RATE = 100000; // Rp per approved paid-leave/permit day (annual/impo
 const SHIFT_START_HOUR = 7;
 const SHIFT_START_MINUTE = 30;
 
+// All day/time reasoning is done in WIB (UTC+7) so it matches what employees
+// see in the browser, regardless of the server's own timezone (UTC on Vercel).
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+const SHIFT_MIN = SHIFT_START_HOUR * 60 + SHIFT_START_MINUTE; // minutes since midnight
+const wibDayStr = (d: Date) => new Date(d.getTime() + WIB_OFFSET_MS).toISOString().split("T")[0];
+const wibMinutesOfDay = (d: Date) => {
+  const w = new Date(d.getTime() + WIB_OFFSET_MS);
+  return w.getUTCHours() * 60 + w.getUTCMinutes();
+};
+
 export type RecapRow = {
   employeeId: string;
   name: string;
@@ -62,27 +72,32 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
         ),
     ]);
 
-    // Working days in month (exclude weekends)
-    let workingDays = 0;
-    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-      const w = d.getDay();
-      if (w !== 0 && w !== 6) workingDays++;
+    // Working days of the month in WIB (exclude weekends). Build the list of
+    // WIB day strings up front so present/leave/alpha all compare consistently.
+    const daysInMonth = new Date(year, m, 0).getDate();
+    const workingDayStrs: string[] = [];
+    for (let dn = 1; dn <= daysInMonth; dn++) {
+      const dayDate = new Date(Date.UTC(year, m - 1, dn));
+      const w = dayDate.getUTCDay();
+      if (w !== 0 && w !== 6) {
+        workingDayStrs.push(`${year}-${String(m).padStart(2, "0")}-${String(dn).padStart(2, "0")}`);
+      }
     }
+    const workingDays = workingDayStrs.length;
 
     const data: RecapRow[] = emps.map((emp) => {
       const empAtts = atts.filter((a) => a.employeeId === emp.id && a.clockIn);
 
-      // Present dates + lateness
+      // Present dates + lateness (all in WIB)
       const presentDates = new Set<string>();
       let lateMinutes = 0;
       let lateDays = 0;
       empAtts.forEach((a) => {
         const ci = new Date(a.clockIn as Date);
-        presentDates.add(ci.toISOString().split("T")[0]);
-        const shift = new Date(ci);
-        shift.setHours(SHIFT_START_HOUR, SHIFT_START_MINUTE, 0, 0);
-        if (ci > shift) {
-          lateMinutes += Math.floor((ci.getTime() - shift.getTime()) / 60000);
+        presentDates.add(wibDayStr(ci));
+        const mod = wibMinutesOfDay(ci);
+        if (mod > SHIFT_MIN) {
+          lateMinutes += mod - SHIFT_MIN;
           lateDays++;
         }
       });
@@ -99,9 +114,8 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
           const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           leaveDays += diff;
           for (let i = 0; i < diff; i++) {
-            const dd = new Date(s);
-            dd.setDate(dd.getDate() + i);
-            leaveDates.add(dd.toISOString().split("T")[0]);
+            const dd = new Date(s.getTime() + i * 24 * 60 * 60 * 1000);
+            leaveDates.add(wibDayStr(dd));
           }
           if (l.type === "annual" || l.type === "important" || l.type === "unpaid") {
             leaveDeduction += diff * LEAVE_RATE;
@@ -110,10 +124,7 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
 
       // Alpha = working days with neither attendance nor approved leave
       let alphaDays = 0;
-      for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-        const w = d.getDay();
-        if (w === 0 || w === 6) continue;
-        const ds = new Date(d).toISOString().split("T")[0];
+      for (const ds of workingDayStrs) {
         if (!presentDates.has(ds) && !leaveDates.has(ds)) alphaDays++;
       }
 

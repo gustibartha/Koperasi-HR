@@ -34,15 +34,22 @@ export async function calculateAndGeneratePayroll(
     const SHIFT_START_MINUTE = 30;
     const DEDUCTION_PER_MINUTE = 5000;
 
+    // Reason about days/times in WIB (UTC+7) so results match the attendance page
+    // regardless of the server's timezone (UTC on Vercel).
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const SHIFT_MIN = SHIFT_START_HOUR * 60 + SHIFT_START_MINUTE;
+    const wibDayStr = (d: Date) => new Date(d.getTime() + WIB_OFFSET_MS).toISOString().split("T")[0];
+    const wibMinutesOfDay = (d: Date) => {
+      const w = new Date(d.getTime() + WIB_OFFSET_MS);
+      return w.getUTCHours() * 60 + w.getUTCMinutes();
+    };
+
     monthAttendances.forEach(att => {
       if (att.clockIn) {
         const checkIn = new Date(att.clockIn);
-        const shiftStart = new Date(checkIn);
-        shiftStart.setHours(SHIFT_START_HOUR, SHIFT_START_MINUTE, 0, 0);
-
-        if (checkIn > shiftStart) {
-          const diffMs = checkIn.getTime() - shiftStart.getTime();
-          totalLateMinutes += Math.floor(diffMs / (1000 * 60));
+        const mod = wibMinutesOfDay(checkIn);
+        if (mod > SHIFT_MIN) {
+          totalLateMinutes += mod - SHIFT_MIN;
         }
 
         if (att.clockOut) {
@@ -76,11 +83,10 @@ export async function calculateAndGeneratePayroll(
        // Add to work hours (8h per day)
        totalActualWorkHours += diffDays * 8;
 
-       // Track leave dates
+       // Track leave dates (WIB)
        for (let i = 0; i < diffDays; i++) {
-          const d = new Date(start);
-          d.setDate(d.getDate() + i);
-          approvedLeaveDays.add(d.toISOString().split('T')[0]);
+          const d = new Date(start.getTime() + i * 24 * 60 * 60 * 1000);
+          approvedLeaveDays.add(wibDayStr(d));
        }
 
        // Apply deduction for certain types (including annual for simulation/policy)
@@ -89,26 +95,25 @@ export async function calculateAndGeneratePayroll(
        }
     });
 
-    // 2b. Calculate Alpha (absent without approved leave)
+    // 2b. Calculate Alpha (absent without approved leave) — all in WIB
     let alphaDeduction = 0;
     const attendanceDates = new Set<string>();
     monthAttendances.forEach(att => {
       if (att.clockIn) {
-        const date = new Date(att.clockIn).toISOString().split('T')[0];
-        attendanceDates.add(date);
+        attendanceDates.add(wibDayStr(new Date(att.clockIn)));
       }
     });
 
-    // Calculate working days in month (exclude weekends)
+    // Working days of the month in WIB (exclude weekends)
     let workingDaysInMonth = 0;
     let alphaDays = 0;
-    for (let d = new Date(startOfMonth); d <= endOfMonth; d.setDate(d.getDate() + 1)) {
-      const dayOfWeek = d.getDay();
-      // Exclude Saturdays (6) and Sundays (0)
+    const daysInMonth = new Date(year, monthNum, 0).getDate();
+    for (let dn = 1; dn <= daysInMonth; dn++) {
+      const dayDate = new Date(Date.UTC(year, monthNum - 1, dn));
+      const dayOfWeek = dayDate.getUTCDay();
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
         workingDaysInMonth++;
-        const dateStr = new Date(d).toISOString().split('T')[0];
-        // Check if employee has attendance or approved leave on this day
+        const dateStr = `${year}-${String(monthNum).padStart(2, "0")}-${String(dn).padStart(2, "0")}`;
         if (!attendanceDates.has(dateStr) && !approvedLeaveDays.has(dateStr)) {
           alphaDays++;
           alphaDeduction += ALPHA_DEDUCTION_RATE;
