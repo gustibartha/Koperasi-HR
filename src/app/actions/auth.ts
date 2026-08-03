@@ -124,3 +124,26 @@ export async function loginEmployee(email: string, password: string) {
     return { success: false, message: "Terjadi kesalahan sistem." };
   }
 }
+
+/**
+ * Admin resets an employee's login password to a new value.
+ */
+export async function resetEmployeePassword(employeeId: string, newPassword: string) {
+  try {
+    if (!employeeId || !newPassword || newPassword.length < 4) {
+      return { success: false, message: "Password minimal 4 karakter." };
+    }
+    const rows = await db.select().from(employees).where(eq(employees.id, employeeId)).limit(1);
+    if (rows.length === 0) {
+      return { success: false, message: "Pegawai tidak ditemukan." };
+    }
+    await db
+      .update(employees)
+      .set({ password: hashPassword(newPassword), updatedAt: new Date() })
+      .where(eq(employees.id, employeeId));
+    return { success: true, message: "Password berhasil direset." };
+  } catch (error) {
+    console.error("RESET_PW_ERROR:", error);
+    return { success: false, message: "Gagal mereset password." };
+  }
+}

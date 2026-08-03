@@ -38,6 +38,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { MoreHorizontal, Plus, Search, Phone, Mail, Briefcase, GraduationCap, Calendar, Filter, Upload, Download, FileSpreadsheet, Loader2 } from "lucide-react"
 import { getEmployees, addEmployee, deleteEmployee, updateEmployee } from "@/app/actions/employee"
+import { resetEmployeePassword } from "@/app/actions/auth"
 import { toast } from "sonner"
 import { useCompany } from "@/context/CompanyContext"
 
@@ -55,6 +56,10 @@ export default function EmployeesPage() {
   // Edit & View dialog state
   const [editEmployee, setEditEmployee] = React.useState<any | null>(null)
   const [viewEmployee, setViewEmployee] = React.useState<any | null>(null)
+  // Reset password dialog state
+  const [resetEmployee, setResetEmployee] = React.useState<any | null>(null)
+  const [resetPassword, setResetPassword] = React.useState("")
+  const [resetLoading, setResetLoading] = React.useState(false)
   const [editData, setEditData] = React.useState({
     name: "", email: "", phone: "", position: "", department: "", education: "", joiningYear: "",
   })
@@ -154,6 +159,24 @@ export default function EmployeesPage() {
       } else {
         alert(res.message)
       }
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetEmployee) return
+    if (resetPassword.length < 4) {
+      toast.error("Password minimal 4 karakter.")
+      return
+    }
+    setResetLoading(true)
+    const res = await resetEmployeePassword(resetEmployee.id, resetPassword)
+    setResetLoading(false)
+    if (res.success) {
+      toast.success(`Password ${resetEmployee.name} berhasil direset.`)
+      setResetEmployee(null)
+      setResetPassword("")
+    } else {
+      toast.error(res.message)
     }
   }
 
@@ -387,6 +410,7 @@ export default function EmployeesPage() {
                         <DropdownMenuLabel className="px-6 py-4 font-bold text-lg tracking-tight">Employee Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => openEdit(employee)} className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">Edit Profile</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setViewEmployee(employee)} className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">View Full Record</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setResetEmployee(employee); setResetPassword("") }} className="focus:bg-accent focus:text-accent-foreground py-5 px-6 rounded-2xl cursor-pointer font-bold text-lg transition-all">Reset Password</DropdownMenuItem>
                         <DropdownMenuSeparator className="my-3" />
                         <DropdownMenuItem 
                           onClick={() => handleDelete(employee.id)}
@@ -414,6 +438,35 @@ export default function EmployeesPage() {
       </div>
 
       {/* Edit Employee Dialog */}
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetEmployee} onOpenChange={(o) => { if (!o) { setResetEmployee(null); setResetPassword("") } }}>
+        <DialogContent className="sm:max-w-[520px] bg-popover border-border rounded-[2.5rem] p-10 shadow-2xl">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-3xl font-bold tracking-tight font-serif text-foreground">Reset Password</DialogTitle>
+            <DialogDescription className="text-lg text-muted-foreground">
+              Tetapkan password baru untuk <span className="font-bold text-foreground">{resetEmployee?.name}</span> ({resetEmployee?.email}). Beritahukan password ini ke karyawan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-8">
+            <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Password Baru</Label>
+            <Input
+              type="text"
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+              placeholder="Minimal 4 karakter"
+              className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold"
+            />
+          </div>
+          <DialogFooter className="gap-4">
+            <Button variant="outline" onClick={() => { setResetEmployee(null); setResetPassword("") }} className="h-14 px-8 font-bold border-border rounded-2xl hover:bg-accent transition-all">Batal</Button>
+            <Button onClick={handleResetPassword} disabled={resetLoading} className="h-14 px-10 font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl transition-all">
+              {resetLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+              Simpan Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!editEmployee} onOpenChange={(o) => { if (!o) setEditEmployee(null) }}>
         <DialogContent className="sm:max-w-[750px] bg-popover border-border rounded-[2.5rem] p-12 shadow-2xl overflow-y-auto max-h-[90vh]">
           <DialogHeader className="space-y-4">
