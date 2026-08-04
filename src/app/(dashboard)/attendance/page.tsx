@@ -659,13 +659,39 @@ export default function AttendancePage() {
                     Buka di Maps ↗
                   </a>
                 </div>
-                <iframe
-                  title={loc.name}
-                  src={`https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=16&output=embed`}
-                  className="w-full h-64 border-0"
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
+                {(() => {
+                  // Draw the radius as a translucent circle over the map. Diameter in px
+                  // is derived from the Web-Mercator meters-per-pixel at zoom 16.
+                  const Z = 16
+                  const metersPerPixel = (156543.03392 * Math.cos((loc.lat * Math.PI) / 180)) / Math.pow(2, Z)
+                  const diameterPx = Math.round((2 * loc.radius) / metersPerPixel)
+                  return (
+                    <div className="relative w-full h-64">
+                      <iframe
+                        title={loc.name}
+                        src={`https://maps.google.com/maps?q=${loc.lat},${loc.lng}&z=${Z}&output=embed`}
+                        className="absolute inset-0 w-full h-full border-0"
+                        loading="lazy"
+                        referrerPolicy="no-referrer-when-downgrade"
+                      />
+                      {/* Radius overlay (approximate coverage area for clock-in) */}
+                      <div
+                        className="pointer-events-none absolute top-1/2 left-1/2 rounded-full"
+                        style={{
+                          width: diameterPx,
+                          height: diameterPx,
+                          transform: "translate(-50%, -50%)",
+                          background: "rgba(16,185,129,0.20)",
+                          border: "2px solid rgba(16,185,129,0.9)",
+                          boxShadow: "0 0 0 9999px rgba(0,0,0,0.02)",
+                        }}
+                      />
+                      <div className="pointer-events-none absolute bottom-2 left-2 bg-black/70 text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-md">
+                        Area absen • radius {loc.radius}m
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             ))}
           </div>
