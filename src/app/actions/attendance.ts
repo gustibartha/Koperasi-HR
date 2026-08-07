@@ -18,7 +18,7 @@ export async function clockIn(employeeId: string, locationGps: string, biometric
     const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
 
     const todays = await db
-      .select()
+      .select({ clockIn: attendances.clockIn, clockOut: attendances.clockOut })
       .from(attendances)
       .where(
         and(

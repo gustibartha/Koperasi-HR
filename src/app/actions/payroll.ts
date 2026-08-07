@@ -18,8 +18,10 @@ export async function calculateAndGeneratePayroll(
     const startOfMonth = new Date(year, monthNum - 1, 1, 0, 0, 0);
     const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59);
 
-    // 1. Calculate Attendance Deductions & Hours
-    const monthAttendances = await db.select().from(attendances).where(
+    // 1. Calculate Attendance Deductions & Hours (no photo — keep egress low)
+    const monthAttendances = await db
+      .select({ clockIn: attendances.clockIn, clockOut: attendances.clockOut })
+      .from(attendances).where(
       and(
         eq(attendances.employeeId, employeeId),
         gte(attendances.clockIn, startOfMonth),
