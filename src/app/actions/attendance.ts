@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { attendances, employees } from "@/db/schema";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export async function clockIn(employeeId: string, locationGps: string, biometricValid: boolean, companyId?: string, photo?: string) {
@@ -76,13 +76,17 @@ export async function getAttendancesByEmployee(employeeId: string) {
 export async function getAllAttendances(companyId?: string) {
   try {
     if (!companyId) return { success: true, data: [] };
+    // NOTE: never select the `photo` column here — photos are ~34KB base64 each
+    // and this list is fetched on every page load; returning them for every row
+    // was the main driver of Supabase egress. Load photos on demand instead
+    // (see getAttendancePhoto). `hasPhoto` lets the UI show/hide the button.
     const data = await db.select({
       id: attendances.id,
       employeeName: employees.name,
       clockIn: attendances.clockIn,
       clockOut: attendances.clockOut,
       locationGps: attendances.locationGps,
-      photo: attendances.photo,
+      hasPhoto: sql<boolean>`${attendances.photo} is not null`,
       biometricValid: attendances.biometricValid,
     })
     .from(attendances)
@@ -92,5 +96,19 @@ export async function getAllAttendances(companyId?: string) {
     return { success: true, data };
   } catch (error) {
     return { success: false, message: "Gagal mengambil semua data kehadiran", error };
+  }
+}
+
+// Fetch a single attendance photo only when the user opens "View Photo".
+export async function getAttendancePhoto(attendanceId: string) {
+  try {
+    const rows = await db
+      .select({ photo: attendances.photo })
+      .from(attendances)
+      .where(eq(attendances.id, attendanceId))
+      .limit(1);
+    return { success: true, photo: rows[0]?.photo ?? null };
+  } catch (error) {
+    return { success: false, photo: null, message: "Gagal mengambil foto" };
   }
 }

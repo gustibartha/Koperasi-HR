@@ -50,7 +50,12 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
     const [emps, atts, lvs] = await Promise.all([
       db.select().from(employees).where(eq(employees.companyId, companyId)),
       db
-        .select()
+        // Only the columns needed for the recap — never the heavy `photo` column.
+        .select({
+          employeeId: attendances.employeeId,
+          clockIn: attendances.clockIn,
+          clockOut: attendances.clockOut,
+        })
         .from(attendances)
         .where(
           and(

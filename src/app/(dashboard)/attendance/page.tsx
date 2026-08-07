@@ -21,7 +21,7 @@ import {
   TrendingDown,
   Loader2
 } from "lucide-react"
-import { clockIn, clockOut, getAllAttendances } from "@/app/actions/attendance"
+import { clockIn, clockOut, getAllAttendances, getAttendancePhoto } from "@/app/actions/attendance"
 import { getEmployees } from "@/app/actions/employee"
 import { useCompany } from "@/context/CompanyContext"
 import { Input } from "@/components/ui/input"
@@ -87,7 +87,14 @@ export default function AttendancePage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
   const [showArea, setShowArea] = React.useState(false)
-  const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null } | null>(null)
+  const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null; loading: boolean } | null>(null)
+
+  // Load the photo on demand (kept out of the list query to save egress).
+  const openPhoto = async (log: any, timeStr: string) => {
+    setViewPhoto({ name: log.employeeName || "Unknown", time: timeStr, photo: null, loading: true })
+    const res = await getAttendancePhoto(log.id)
+    setViewPhoto(prev => (prev ? { ...prev, photo: res.photo ?? null, loading: false } : prev))
+  }
 
   // Attendance log is shown one day at a time; default to today, filterable to past days.
   const toDateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -586,7 +593,7 @@ export default function AttendancePage() {
                                    <Button
                                      variant="ghost"
                                      size="sm"
-                                     onClick={() => setViewPhoto({ name: log.employeeName || "Unknown", time: ci.toLocaleString(), photo: log.photo || null })}
+                                     onClick={() => openPhoto(log, ci.toLocaleString())}
                                      className="text-xs font-bold text-muted-foreground hover:text-foreground"
                                    >View Photo</Button>
                                 </TableCell>
@@ -708,7 +715,12 @@ export default function AttendancePage() {
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest -mt-2">{viewPhoto.time}</p>
           )}
           <div className="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl mt-2">
-            {viewPhoto?.photo ? (
+            {viewPhoto?.loading ? (
+              <div className="w-full h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-[10px] uppercase tracking-widest font-bold">Memuat foto...</p>
+              </div>
+            ) : viewPhoto?.photo ? (
               <img src={viewPhoto.photo} alt={`Foto absen ${viewPhoto.name}`} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-center gap-3 text-muted-foreground p-6">
