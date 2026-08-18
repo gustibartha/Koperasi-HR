@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { payrolls, loans, employees, attendances, leaves } from "@/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { deductLoan } from "./loan";
 
@@ -15,8 +15,25 @@ export async function calculateAndGeneratePayroll(
 ) {
   try {
     const [year, monthNum] = month.split("-").map(Number);
-    const startOfMonth = new Date(year, monthNum - 1, 1, 0, 0, 0);
-    const endOfMonth = new Date(year, monthNum, 0, 23, 59, 59);
+
+    // Reason about days/times in WIB (UTC+7) so results match the attendance page
+    // regardless of the server's timezone (UTC on Vercel).
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const SHIFT_START_HOUR = 7;
+    const SHIFT_START_MINUTE = 30;
+    const DEDUCTION_PER_MINUTE = 5000;
+    const SHIFT_MIN = SHIFT_START_HOUR * 60 + SHIFT_START_MINUTE;
+    const wibDayStr = (d: Date) => new Date(d.getTime() + WIB_OFFSET_MS).toISOString().split("T")[0];
+    const wibMinutesOfDay = (d: Date) => {
+      const w = new Date(d.getTime() + WIB_OFFSET_MS);
+      return w.getUTCHours() * 60 + w.getUTCMinutes();
+    };
+
+    // Payroll cut-off period: from the 21st of the PREVIOUS month up to and
+    // including the 20th of the selected month (both at WIB 00:00).
+    // e.g. "Gaji Agustus" (month=2026-08) → 21 Jul 2026 – 20 Aug 2026.
+    const periodStart = new Date(Date.UTC(year, monthNum - 2, 21) - WIB_OFFSET_MS);
+    const periodEnd = new Date(Date.UTC(year, monthNum - 1, 21) - WIB_OFFSET_MS); // exclusive
 
     // 1. Calculate Attendance Deductions & Hours (no photo — keep egress low)
     const monthAttendances = await db
@@ -24,27 +41,13 @@ export async function calculateAndGeneratePayroll(
       .from(attendances).where(
       and(
         eq(attendances.employeeId, employeeId),
-        gte(attendances.clockIn, startOfMonth),
-        lte(attendances.clockIn, endOfMonth)
+        gte(attendances.clockIn, periodStart),
+        lt(attendances.clockIn, periodEnd)
       )
     );
 
     let totalLateMinutes = 0;
     let totalActualWorkHours = 0;
-    // Late deduction starts at shift start 07:30, matching the attendance page display.
-    const SHIFT_START_HOUR = 7;
-    const SHIFT_START_MINUTE = 30;
-    const DEDUCTION_PER_MINUTE = 5000;
-
-    // Reason about days/times in WIB (UTC+7) so results match the attendance page
-    // regardless of the server's timezone (UTC on Vercel).
-    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
-    const SHIFT_MIN = SHIFT_START_HOUR * 60 + SHIFT_START_MINUTE;
-    const wibDayStr = (d: Date) => new Date(d.getTime() + WIB_OFFSET_MS).toISOString().split("T")[0];
-    const wibMinutesOfDay = (d: Date) => {
-      const w = new Date(d.getTime() + WIB_OFFSET_MS);
-      return w.getUTCHours() * 60 + w.getUTCMinutes();
-    };
 
     monthAttendances.forEach(att => {
       if (att.clockIn) {
@@ -67,8 +70,8 @@ export async function calculateAndGeneratePayroll(
       and(
         eq(leaves.employeeId, employeeId),
         eq(leaves.status, "disetujui"),
-        gte(leaves.startDate, startOfMonth),
-        lte(leaves.startDate, endOfMonth)
+        gte(leaves.startDate, periodStart),
+        lt(leaves.startDate, periodEnd)
       )
     );
 
@@ -106,16 +109,19 @@ export async function calculateAndGeneratePayroll(
       }
     });
 
-    // Working days of the month in WIB (exclude weekends)
+    // Working days within the cut-off period in WIB (21st prev month → 20th
+    // selected month, exclude weekends)
     let workingDaysInMonth = 0;
     let alphaDays = 0;
-    const daysInMonth = new Date(year, monthNum, 0).getDate();
-    for (let dn = 1; dn <= daysInMonth; dn++) {
-      const dayDate = new Date(Date.UTC(year, monthNum - 1, dn));
-      const dayOfWeek = dayDate.getUTCDay();
+    for (
+      let dd = new Date(Date.UTC(year, monthNum - 2, 21));
+      dd <= new Date(Date.UTC(year, monthNum - 1, 20));
+      dd.setUTCDate(dd.getUTCDate() + 1)
+    ) {
+      const dayOfWeek = dd.getUTCDay();
       if (dayOfWeek !== 0 && dayOfWeek !== 6) {
         workingDaysInMonth++;
-        const dateStr = `${year}-${String(monthNum).padStart(2, "0")}-${String(dn).padStart(2, "0")}`;
+        const dateStr = dd.toISOString().split("T")[0];
         if (!attendanceDates.has(dateStr) && !approvedLeaveDays.has(dateStr)) {
           alphaDays++;
           alphaDeduction += ALPHA_DEDUCTION_RATE;

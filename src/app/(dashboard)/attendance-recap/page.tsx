@@ -38,6 +38,10 @@ export default function AttendanceRecapPage() {
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 
   const monthLabel = new Date(month + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" })
+  // Cut-off period: 21st of prev month → 20th of the selected month.
+  const [pY, pM] = month.split("-").map(Number)
+  const fmtDate = (d: Date) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+  const periodLabel = `${fmtDate(new Date(pY, pM - 2, 21))} – ${fmtDate(new Date(pY, pM - 1, 20))}`
 
   const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
 
@@ -76,9 +80,9 @@ export default function AttendanceRecapPage() {
       <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-blue-700">
         <Wallet className="h-5 w-5 shrink-0 mt-0.5" />
         <p className="text-sm font-medium">
-          Angka potongan di bawah dihitung dengan tarif yang sama seperti payroll
-          (<strong>telat Rp 5.000/menit</strong>, <strong>alpha Rp 150.000/hari</strong>, <strong>cuti/izin Rp 100.000/hari</strong>).
-          Nilai ini otomatis diterapkan saat Anda meng-generate gaji bulan {monthLabel} di menu Payroll.
+          Periode gaji <strong>{monthLabel}</strong> dihitung dari absensi <strong>{periodLabel}</strong> (cut-off tanggal 20).
+          Tarif sama seperti payroll (<strong>telat Rp 5.000/menit</strong>, <strong>alpha Rp 150.000/hari</strong>, <strong>cuti/izin Rp 100.000/hari</strong>),
+          dan otomatis diterapkan saat generate gaji di menu Payroll.
         </p>
       </div>
 
@@ -127,7 +131,7 @@ export default function AttendanceRecapPage() {
         <div className="px-6 md:px-12 py-8 border-b border-border bg-accent/5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
             <h3 className="text-3xl font-bold tracking-tight text-foreground font-serif">Rincian per Pegawai</h3>
-            <p className="text-lg text-muted-foreground font-medium">Periode {monthLabel}</p>
+            <p className="text-lg text-muted-foreground font-medium">Gaji {monthLabel} • Periode {periodLabel}</p>
           </div>
           <div className="relative w-full md:w-80">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />

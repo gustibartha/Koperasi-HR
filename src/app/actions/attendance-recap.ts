@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { employees, attendances, leaves } from "@/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lt } from "drizzle-orm";
 
 // Same rates/rules used by payroll (calculateAndGeneratePayroll) so this recap
 // matches exactly the attendance-based deductions that flow into salary.
@@ -44,8 +44,11 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
     if (!companyId || !month) return { success: true, data: [] as RecapRow[] };
 
     const [year, m] = month.split("-").map(Number);
-    const startOfMonth = new Date(year, m - 1, 1, 0, 0, 0);
-    const endOfMonth = new Date(year, m, 0, 23, 59, 59);
+    // Payroll cut-off period: from the 21st of the PREVIOUS month up to and
+    // including the 20th of the selected month (both bounds at WIB 00:00).
+    // e.g. "Gaji Agustus" (month=2026-08) → 21 Jul 2026 – 20 Aug 2026.
+    const periodStart = new Date(Date.UTC(year, m - 2, 21) - WIB_OFFSET_MS);
+    const periodEnd = new Date(Date.UTC(year, m - 1, 21) - WIB_OFFSET_MS); // exclusive (21st current, WIB 00:00)
 
     const [emps, atts, lvs] = await Promise.all([
       db.select().from(employees).where(eq(employees.companyId, companyId)),
@@ -60,8 +63,8 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
         .where(
           and(
             eq(attendances.companyId, companyId),
-            gte(attendances.clockIn, startOfMonth),
-            lte(attendances.clockIn, endOfMonth)
+            gte(attendances.clockIn, periodStart),
+            lt(attendances.clockIn, periodEnd)
           )
         ),
       db
@@ -71,22 +74,22 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
           and(
             eq(leaves.companyId, companyId),
             eq(leaves.status, "disetujui"),
-            gte(leaves.startDate, startOfMonth),
-            lte(leaves.startDate, endOfMonth)
+            gte(leaves.startDate, periodStart),
+            lt(leaves.startDate, periodEnd)
           )
         ),
     ]);
 
-    // Working days of the month in WIB (exclude weekends). Build the list of
-    // WIB day strings up front so present/leave/alpha all compare consistently.
-    const daysInMonth = new Date(year, m, 0).getDate();
+    // Working days within the period (WIB, exclude weekends). Same WIB day-string
+    // basis as present/leave/alpha so they compare consistently.
     const workingDayStrs: string[] = [];
-    for (let dn = 1; dn <= daysInMonth; dn++) {
-      const dayDate = new Date(Date.UTC(year, m - 1, dn));
-      const w = dayDate.getUTCDay();
-      if (w !== 0 && w !== 6) {
-        workingDayStrs.push(`${year}-${String(m).padStart(2, "0")}-${String(dn).padStart(2, "0")}`);
-      }
+    for (
+      let dd = new Date(Date.UTC(year, m - 2, 21));
+      dd <= new Date(Date.UTC(year, m - 1, 20));
+      dd.setUTCDate(dd.getUTCDate() + 1)
+    ) {
+      const w = dd.getUTCDay();
+      if (w !== 0 && w !== 6) workingDayStrs.push(dd.toISOString().split("T")[0]);
     }
     const workingDays = workingDayStrs.length;
 
