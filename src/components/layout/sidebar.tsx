@@ -81,7 +81,7 @@ const allMenuItems = [
     title: "Rekap Absensi",
     url: "/attendance-recap",
     icon: ClipboardList,
-    roles: ["superadmin", "admin"],
+    roles: ["superadmin"],
   },
   {
     title: "Payroll",

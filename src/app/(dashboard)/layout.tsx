@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/breadcrumb"
 
 const adminOnlyRoutes = ["/dashboard", "/employees", "/payroll", "/attendance-recap", "/settings"]
+// Restricted to superadmin only (not tenant admins).
+const superadminOnlyRoutes = ["/attendance-recap"]
 
 export default function DashboardLayout({
   children,
@@ -35,8 +37,13 @@ export default function DashboardLayout({
     }
 
     const isAdminRoute = adminOnlyRoutes.some(route => pathname.startsWith(route))
-    
-    if (isAdminRoute && storedRole === "user") {
+    const isSuperadminRoute = superadminOnlyRoutes.some(route => pathname.startsWith(route))
+
+    if (isSuperadminRoute && storedRole !== "superadmin") {
+      // Tenant admins & users can't access superadmin-only pages.
+      router.push(storedRole === "user" ? "/attendance" : "/dashboard")
+      setIsAuthorized(false)
+    } else if (isAdminRoute && storedRole === "user") {
       router.push("/attendance")
       setIsAuthorized(false)
     } else {
