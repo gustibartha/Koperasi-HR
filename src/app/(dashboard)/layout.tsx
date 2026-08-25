@@ -16,7 +16,7 @@ import {
 
 const adminOnlyRoutes = ["/dashboard", "/employees", "/payroll", "/attendance-recap", "/settings"]
 // Restricted to superadmin only (not tenant admins).
-const superadminOnlyRoutes = ["/attendance-recap"]
+const superadminOnlyRoutes: string[] = []
 
 export default function DashboardLayout({
   children,
