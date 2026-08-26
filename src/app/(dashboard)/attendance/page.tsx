@@ -92,6 +92,7 @@ export default function AttendancePage() {
   const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null; loading: boolean } | null>(null)
   const [leaveList, setLeaveList] = React.useState<any[]>([])
   const [calMonth, setCalMonth] = React.useState(() => new Date().toISOString().slice(0, 7)) // YYYY-MM
+  const [calEmployeeId, setCalEmployeeId] = React.useState<string | null>(null)
 
   // Load the photo on demand (kept out of the list query to save egress).
   const openPhoto = async (log: any, timeStr: string) => {
@@ -161,10 +162,20 @@ export default function AttendancePage() {
 
   const maxLate = Math.max(1, ...weeklyLateRecap.map(d => d.count))
 
+  // Default the calendar subject to the clock-in subject, else the first employee.
+  React.useEffect(() => {
+    if (employeeList.length === 0) return
+    setCalEmployeeId(prev => {
+      if (prev && employeeList.some(e => e.id === prev)) return prev
+      if (activeEmployeeId && employeeList.some(e => e.id === activeEmployeeId)) return activeEmployeeId
+      return employeeList[0].id
+    })
+  }, [employeeList, activeEmployeeId])
+
   // ===== Attendance calendar for the selected employee =====
   const calData = React.useMemo(() => {
     const [cy, cm] = calMonth.split("-").map(Number) // cm is 1-based
-    const selName = employeeList.find(e => e.id === activeEmployeeId)?.name || null
+    const selName = employeeList.find(e => e.id === calEmployeeId)?.name || null
 
     // Attendance days (+ late flag) for the selected employee
     const attMap = new Map<string, { late: boolean }>()
@@ -225,7 +236,7 @@ export default function AttendancePage() {
     })
 
     return { cy, cm, selName, cells, counts }
-  }, [calMonth, activeEmployeeId, attendanceList, leaveList, employeeList])
+  }, [calMonth, calEmployeeId, attendanceList, leaveList, employeeList])
 
   const calMonthLabel = new Date(calMonth + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" })
   const shiftCalMonth = (delta: number) => {
@@ -717,17 +728,26 @@ export default function AttendancePage() {
               <TabsContent value="calendar">
                  <Card className="rounded-[2.5rem] border border-border bg-card shadow-2xl p-6 md:p-8">
                     {/* Header: month nav + subject */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                       <div>
-                          <h3 className="text-2xl font-bold font-serif text-foreground">Kalender Kehadiran</h3>
-                          <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
-                             {calData.selName || "Pilih pegawai dulu"} • {calMonthLabel}
-                          </p>
-                       </div>
-                       <div className="flex items-center gap-2">
-                          <Button variant="outline" onClick={() => shiftCalMonth(-1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">‹</Button>
-                          <span className="text-sm font-bold min-w-[130px] text-center">{calMonthLabel}</span>
-                          <Button variant="outline" onClick={() => shiftCalMonth(1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">›</Button>
+                    <div className="flex flex-col gap-4 mb-6">
+                       <h3 className="text-2xl font-bold font-serif text-foreground">Kalender Kehadiran</h3>
+                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <Select value={calEmployeeId ?? ""} onValueChange={(val) => setCalEmployeeId(val)}>
+                             <SelectTrigger className="h-11 w-full sm:w-72 bg-accent/20 border-border rounded-xl px-4 font-bold text-sm">
+                                <SelectValue placeholder="Pilih pegawai...">
+                                   {(value: any) => employeeList.find(e => e.id === value)?.name ?? "Pilih pegawai..."}
+                                </SelectValue>
+                             </SelectTrigger>
+                             <SelectContent className="rounded-2xl border-border bg-popover max-h-[300px]">
+                                {employeeList.map(emp => (
+                                   <SelectItem key={emp.id} value={emp.id} className="font-bold py-2.5 pr-8">{emp.name}</SelectItem>
+                                ))}
+                             </SelectContent>
+                          </Select>
+                          <div className="flex items-center gap-2 shrink-0">
+                             <Button variant="outline" onClick={() => shiftCalMonth(-1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">‹</Button>
+                             <span className="text-sm font-bold min-w-[130px] text-center">{calMonthLabel}</span>
+                             <Button variant="outline" onClick={() => shiftCalMonth(1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">›</Button>
+                          </div>
                        </div>
                     </div>
 
