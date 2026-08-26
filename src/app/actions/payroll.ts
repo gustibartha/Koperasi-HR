@@ -36,6 +36,23 @@ export async function calculateAndGeneratePayroll(
     const periodStart = new Date(Date.UTC(year, monthNum - 2, 21) - WIB_OFFSET_MS);
     const periodEnd = new Date(Date.UTC(year, monthNum - 1, 21) - WIB_OFFSET_MS); // exclusive
 
+    // PT Wira Karya Sinergi uses a fixed-tariff deduction schedule (Keterlambatan
+    // & Pulang Awal) per its official SK instead of the generic per-minute rate.
+    // Other companies keep the generic formula unchanged.
+    const WKS_COMPANY_ID = '279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e';
+    const useWksTariff = companyId === WKS_COMPANY_ID;
+
+    // Total earnings — computed early because WKS's Alfa formula (point 7 of
+    // the SK) needs it: Potongan Alfa = Total Upah × 1/22 × hari tidak hadir.
+    const totalEarnings = basicSalary +
+      (extras.mealAllowance || 0) +
+      (extras.positionAllowance || 0) +
+      (extras.competencyAllowance || 0) +
+      (extras.phoneAllowance || 0) +
+      (extras.premi || 0) +
+      (extras.overtimeAmount || 0) +
+      (extras.overtimeMeal || 0);
+
     // 1. Calculate Attendance Deductions & Hours (no photo — keep egress low)
     const monthAttendances = await db
       .select({ clockIn: attendances.clockIn, clockOut: attendances.clockOut })
@@ -47,21 +64,60 @@ export async function calculateAndGeneratePayroll(
       )
     );
 
-    let totalLateMinutes = 0;
+    let totalLateMinutes = 0; // generic (non-WKS) companies
+    let wksTariffDeduction = 0; // WKS: sum of Keterlambatan + Pulang Awal flat fees
     let totalActualWorkHours = 0;
+    // WIB day-strings that count as a full Alfa day under the WKS SK even
+    // though the employee did clock in (in >= 12:01, or out < 13:30).
+    const wksAlfaOverrideDates = new Set<string>();
 
     monthAttendances.forEach(att => {
-      if (att.clockIn) {
-        const checkIn = new Date(att.clockIn);
-        const mod = wibMinutesOfDay(checkIn);
-        if (mod > SHIFT_MIN) {
-          totalLateMinutes += mod - SHIFT_MIN;
+      if (!att.clockIn) return;
+      const checkIn = new Date(att.clockIn);
+      const modIn = wibMinutesOfDay(checkIn);
+      const checkOut = att.clockOut ? new Date(att.clockOut) : null;
+      const modOut = checkOut ? wibMinutesOfDay(checkOut) : null;
+
+      if (checkOut) {
+        totalActualWorkHours += (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60);
+      }
+
+      if (useWksTariff) {
+        // Keterlambatan (per SK PT Wira Karya Sinergi):
+        //   07.46–08.10 → Rp10.000, 08.11–09.10 → Rp20.000,
+        //   09.11–12.00 → Rp30.000, 12.01+ → Dihitung Alfa.
+        // Pulang Awal:
+        //   15.30–16.00 → Rp10.000, 14.30–15.29 → Rp20.000,
+        //   13.30–14.29 → Rp30.000, sebelum 13.30 → Dihitung Alfa.
+        let isAlfaDay = false;
+        let fee = 0;
+
+        if (modIn >= 12 * 60 + 1) {
+          isAlfaDay = true;
+        } else if (modIn >= 7 * 60 + 46) {
+          if (modIn <= 8 * 60 + 10) fee += 10000;
+          else if (modIn <= 9 * 60 + 10) fee += 20000;
+          else if (modIn <= 12 * 60) fee += 30000;
         }
 
-        if (att.clockOut) {
-          const checkOut = new Date(att.clockOut);
-          const workMs = checkOut.getTime() - checkIn.getTime();
-          totalActualWorkHours += workMs / (1000 * 60 * 60);
+        if (modOut !== null) {
+          if (modOut < 13 * 60 + 30) {
+            isAlfaDay = true;
+          } else if (modOut <= 16 * 60) {
+            if (modOut >= 15 * 60 + 30) fee += 10000;
+            else if (modOut >= 14 * 60 + 30) fee += 20000;
+            else if (modOut >= 13 * 60 + 30) fee += 30000;
+          }
+        }
+
+        if (isAlfaDay) {
+          wksAlfaOverrideDates.add(wibDayStr(checkIn));
+        } else {
+          wksTariffDeduction += fee;
+        }
+      } else {
+        if (modIn > SHIFT_MIN) {
+          totalLateMinutes += modIn - SHIFT_MIN;
         }
       }
     });
@@ -101,12 +157,16 @@ export async function calculateAndGeneratePayroll(
        }
     });
 
-    // 2b. Calculate Alpha (absent without approved leave) — all in WIB
+    // 2b. Calculate Alpha (absent without approved leave) — all in WIB.
+    // Under the WKS SK, a day the employee clocked in but was extremely late
+    // (>=12:01) or left extremely early (<13:30) also counts as a full Alfa
+    // day, so it's excluded from "present" here (see wksAlfaOverrideDates).
     let alphaDeduction = 0;
     const attendanceDates = new Set<string>();
     monthAttendances.forEach(att => {
       if (att.clockIn) {
-        attendanceDates.add(wibDayStr(new Date(att.clockIn)));
+        const ds = wibDayStr(new Date(att.clockIn));
+        if (!wksAlfaOverrideDates.has(ds)) attendanceDates.add(ds);
       }
     });
 
@@ -127,13 +187,19 @@ export async function calculateAndGeneratePayroll(
         workingDaysInMonth++;
         if (!attendanceDates.has(dateStr) && !approvedLeaveDays.has(dateStr)) {
           alphaDays++;
-          alphaDeduction += ALPHA_DEDUCTION_RATE;
         }
       }
     }
 
-    const lateDeduction = totalLateMinutes * DEDUCTION_PER_MINUTE;
-    const expectedWorkHours = 22 * 8; 
+    if (useWksTariff) {
+      // Point 7 of the SK: Upah diterima = Total Upah − (Total Upah × 1/22 × hari tidak hadir)
+      alphaDeduction = Math.round(totalEarnings * (1 / 22) * alphaDays);
+    } else {
+      alphaDeduction = alphaDays * ALPHA_DEDUCTION_RATE;
+    }
+
+    const lateDeduction = useWksTariff ? wksTariffDeduction : totalLateMinutes * DEDUCTION_PER_MINUTE;
+    const expectedWorkHours = 22 * 8;
 
     // 3. Calculate Loan Deductions
     const activeLoans = await db.select().from(loans).where(
@@ -150,14 +216,7 @@ export async function calculateAndGeneratePayroll(
         await deductLoan(loan.id, deduction);
     }
 
-    const totalEarnings = basicSalary + 
-      (extras.mealAllowance || 0) + 
-      (extras.positionAllowance || 0) + 
-      (extras.competencyAllowance || 0) + 
-      (extras.phoneAllowance || 0) + 
-      (extras.premi || 0) + 
-      (extras.overtimeAmount || 0) + 
-      (extras.overtimeMeal || 0);
+    // totalEarnings was already computed above (needed early for the WKS Alfa formula).
 
     const totalDeductions = totalLoanDeduction +
       lateDeduction +
