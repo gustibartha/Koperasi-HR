@@ -23,6 +23,8 @@ import {
 } from "lucide-react"
 import { clockIn, clockOut, getAllAttendances, getAttendancePhoto } from "@/app/actions/attendance"
 import { getEmployees } from "@/app/actions/employee"
+import { getAllLeaves } from "@/app/actions/leave"
+import { isHoliday, holidayName } from "@/lib/holidays"
 import { useCompany } from "@/context/CompanyContext"
 import { Input } from "@/components/ui/input"
 import {
@@ -88,6 +90,8 @@ export default function AttendancePage() {
   const [currentAttendanceId, setCurrentAttendanceId] = React.useState<string | null>(null)
   const [showArea, setShowArea] = React.useState(false)
   const [viewPhoto, setViewPhoto] = React.useState<{ name: string; time: string; photo: string | null; loading: boolean } | null>(null)
+  const [leaveList, setLeaveList] = React.useState<any[]>([])
+  const [calMonth, setCalMonth] = React.useState(() => new Date().toISOString().slice(0, 7)) // YYYY-MM
 
   // Load the photo on demand (kept out of the list query to save egress).
   const openPhoto = async (log: any, timeStr: string) => {
@@ -157,6 +161,79 @@ export default function AttendancePage() {
 
   const maxLate = Math.max(1, ...weeklyLateRecap.map(d => d.count))
 
+  // ===== Attendance calendar for the selected employee =====
+  const calData = React.useMemo(() => {
+    const [cy, cm] = calMonth.split("-").map(Number) // cm is 1-based
+    const selName = employeeList.find(e => e.id === activeEmployeeId)?.name || null
+
+    // Attendance days (+ late flag) for the selected employee
+    const attMap = new Map<string, { late: boolean }>()
+    if (selName) {
+      attendanceList.forEach(l => {
+        if (l.employeeName === selName && l.clockIn) {
+          const d = new Date(l.clockIn)
+          const ds = toDateStr(d)
+          const late = lateMinutesFor(d) > 0
+          const prev = attMap.get(ds)
+          attMap.set(ds, { late: (prev?.late ?? false) || late })
+        }
+      })
+    }
+
+    // Approved-leave days for the selected employee
+    const leaveSet = new Set<string>()
+    if (selName) {
+      leaveList.forEach(lv => {
+        if (lv.employeeName === selName && lv.status === "disetujui" && lv.startDate && lv.endDate) {
+          const s = new Date(lv.startDate)
+          const e = new Date(lv.endDate)
+          for (let d = new Date(s.getFullYear(), s.getMonth(), s.getDate()); d <= e; d.setDate(d.getDate() + 1)) {
+            leaveSet.add(toDateStr(d))
+          }
+        }
+      })
+    }
+
+    const daysInMonth = new Date(cy, cm, 0).getDate()
+    const firstDow = new Date(cy, cm - 1, 1).getDay() // 0=Sun
+    const leadingBlanks = (firstDow + 6) % 7 // Monday-first grid
+    const todayStr = toDateStr(new Date())
+
+    const cells: ({ day: number; ds: string; status: string; holiday?: string } | null)[] = []
+    for (let i = 0; i < leadingBlanks; i++) cells.push(null)
+    for (let day = 1; day <= daysInMonth; day++) {
+      const ds = `${cy}-${String(cm).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+      const dow = new Date(cy, cm - 1, day).getDay()
+      let status: string
+      if (attMap.has(ds)) status = attMap.get(ds)!.late ? "telat" : "hadir"
+      else if (leaveSet.has(ds)) status = "izin"
+      else if (isHoliday(ds)) status = "libur"
+      else if (dow === 0 || dow === 6) status = "weekend"
+      else if (ds <= todayStr) status = "alpha"
+      else status = "future"
+      cells.push({ day, ds, status, holiday: holidayName(ds) })
+    }
+
+    // Counts for the month
+    const counts = { hadir: 0, telat: 0, izin: 0, alpha: 0 }
+    cells.forEach(c => {
+      if (!c) return
+      if (c.status === "hadir") counts.hadir++
+      else if (c.status === "telat") counts.telat++
+      else if (c.status === "izin") counts.izin++
+      else if (c.status === "alpha") counts.alpha++
+    })
+
+    return { cy, cm, selName, cells, counts }
+  }, [calMonth, activeEmployeeId, attendanceList, leaveList, employeeList])
+
+  const calMonthLabel = new Date(calMonth + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" })
+  const shiftCalMonth = (delta: number) => {
+    const [y, m] = calMonth.split("-").map(Number)
+    const d = new Date(y, m - 1 + delta, 1)
+    setCalMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`)
+  }
+
   const fetchAttendances = React.useCallback(async () => {
     if (!selectedCompany) return
     setIsFetching(true)
@@ -164,6 +241,9 @@ export default function AttendancePage() {
     if (res.success) {
       setAttendanceList(res.data || [])
     }
+
+    const lvRes = await getAllLeaves(selectedCompany.id)
+    if (lvRes.success) setLeaveList(lvRes.data || [])
 
     const empRes = await getEmployees(selectedCompany.id)
     const emps = empRes.success && empRes.data ? empRes.data : []
@@ -475,6 +555,7 @@ export default function AttendancePage() {
                  <TabsTrigger value="all" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-card data-[state=active]:text-foreground">Absensi Harian</TabsTrigger>
                  <TabsTrigger value="late" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-amber-500/10 data-[state=active]:text-amber-500">Today's Late ({String(lateTodayCount).padStart(2, "0")})</TabsTrigger>
                  <TabsTrigger value="weekly" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">Weekly Recap</TabsTrigger>
+                 <TabsTrigger value="calendar" className="rounded-xl font-bold text-xs uppercase tracking-widest px-6 data-[state=active]:bg-emerald-500/10 data-[state=active]:text-emerald-500">Kalender</TabsTrigger>
               </TabsList>
 
               <TabsContent value="all">
@@ -630,6 +711,85 @@ export default function AttendancePage() {
                           </div>
                        ))}
                     </div>
+                 </Card>
+              </TabsContent>
+
+              <TabsContent value="calendar">
+                 <Card className="rounded-[2.5rem] border border-border bg-card shadow-2xl p-6 md:p-8">
+                    {/* Header: month nav + subject */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                       <div>
+                          <h3 className="text-2xl font-bold font-serif text-foreground">Kalender Kehadiran</h3>
+                          <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
+                             {calData.selName || "Pilih pegawai dulu"} • {calMonthLabel}
+                          </p>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <Button variant="outline" onClick={() => shiftCalMonth(-1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">‹</Button>
+                          <span className="text-sm font-bold min-w-[130px] text-center">{calMonthLabel}</span>
+                          <Button variant="outline" onClick={() => shiftCalMonth(1)} className="h-10 w-10 p-0 rounded-xl border-border font-bold">›</Button>
+                       </div>
+                    </div>
+
+                    {/* Summary chips */}
+                    <div className="flex flex-wrap gap-3 mb-6">
+                       <span className="px-4 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-bold">Hadir {calData.counts.hadir}</span>
+                       <span className="px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-600 text-xs font-bold">Telat {calData.counts.telat}</span>
+                       <span className="px-4 py-1.5 rounded-full bg-blue-500/10 text-blue-600 text-xs font-bold">Izin/Cuti {calData.counts.izin}</span>
+                       <span className="px-4 py-1.5 rounded-full bg-red-500/10 text-red-600 text-xs font-bold">Alpha {calData.counts.alpha}</span>
+                    </div>
+
+                    {/* Weekday header */}
+                    <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+                       {["Sen","Sel","Rab","Kam","Jum","Sab","Min"].map(d => (
+                          <div key={d} className="text-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest py-1">{d}</div>
+                       ))}
+                    </div>
+
+                    {/* Day grid */}
+                    <div className="grid grid-cols-7 gap-1.5">
+                       {calData.cells.map((c, idx) => {
+                          if (!c) return <div key={idx} />
+                          const cls =
+                             c.status === "hadir"   ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-600" :
+                             c.status === "telat"   ? "bg-amber-500/15 border-amber-500/40 text-amber-600" :
+                             c.status === "izin"    ? "bg-blue-500/15 border-blue-500/40 text-blue-600" :
+                             c.status === "alpha"   ? "bg-red-500/15 border-red-500/40 text-red-600" :
+                             c.status === "libur"   ? "bg-purple-500/10 border-purple-500/30 text-purple-500" :
+                             c.status === "weekend" ? "bg-accent/20 border-border text-muted-foreground/50" :
+                                                      "bg-card border-border text-muted-foreground"
+                          const label =
+                             c.status === "hadir" ? "Hadir" : c.status === "telat" ? "Telat" :
+                             c.status === "izin" ? "Izin" : c.status === "alpha" ? "Alpha" :
+                             c.status === "libur" ? "Libur" : c.status === "weekend" ? "—" : ""
+                          return (
+                             <div
+                                key={idx}
+                                title={c.holiday ? `${c.ds} — ${c.holiday}` : c.ds}
+                                className={`aspect-square rounded-xl border flex flex-col items-center justify-center p-1 ${cls}`}
+                             >
+                                <span className="text-sm font-bold leading-none">{c.day}</span>
+                                <span className="text-[8px] font-bold uppercase tracking-wider mt-1 leading-none text-center">
+                                   {c.status === "libur" && c.holiday ? "Libur" : label}
+                                </span>
+                             </div>
+                          )
+                       })}
+                    </div>
+
+                    {/* Holidays this month */}
+                    {calData.cells.some(c => c && c.status === "libur" && c.holiday) && (
+                       <div className="mt-6 pt-4 border-t border-border">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Tanggal Merah Bulan Ini</p>
+                          <div className="flex flex-wrap gap-2">
+                             {calData.cells.filter(c => c && c.status === "libur" && c.holiday).map((c, i) => (
+                                <span key={i} className="text-xs font-bold text-purple-500 bg-purple-500/10 px-3 py-1 rounded-lg">
+                                   {c!.day} {calMonthLabel.split(" ")[0]} — {c!.holiday}
+                                </span>
+                             ))}
+                          </div>
+                       </div>
+                    )}
                  </Card>
               </TabsContent>
            </Tabs>

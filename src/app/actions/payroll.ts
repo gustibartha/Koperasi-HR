@@ -5,6 +5,7 @@ import { payrolls, loans, employees, attendances, leaves } from "@/db/schema";
 import { eq, and, gte, lt } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { deductLoan } from "./loan";
+import { isHoliday } from "@/lib/holidays";
 
 export async function calculateAndGeneratePayroll(
   employeeId: string, 
@@ -119,9 +120,11 @@ export async function calculateAndGeneratePayroll(
       dd.setUTCDate(dd.getUTCDate() + 1)
     ) {
       const dayOfWeek = dd.getUTCDay();
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      const dateStr = dd.toISOString().split("T")[0];
+      // Skip weekends and national holidays (tanggal merah) — not working days,
+      // so they never count as alpha.
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isHoliday(dateStr)) {
         workingDaysInMonth++;
-        const dateStr = dd.toISOString().split("T")[0];
         if (!attendanceDates.has(dateStr) && !approvedLeaveDays.has(dateStr)) {
           alphaDays++;
           alphaDeduction += ALPHA_DEDUCTION_RATE;

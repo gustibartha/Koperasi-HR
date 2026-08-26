@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { employees, attendances, leaves } from "@/db/schema";
 import { eq, and, gte, lt } from "drizzle-orm";
+import { isHoliday } from "@/lib/holidays";
 
 // Same rates/rules used by payroll (calculateAndGeneratePayroll) so this recap
 // matches exactly the attendance-based deductions that flow into salary.
@@ -89,7 +90,9 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
       dd.setUTCDate(dd.getUTCDate() + 1)
     ) {
       const w = dd.getUTCDay();
-      if (w !== 0 && w !== 6) workingDayStrs.push(dd.toISOString().split("T")[0]);
+      const ds = dd.toISOString().split("T")[0];
+      // Exclude weekends and national holidays (tanggal merah) from working days.
+      if (w !== 0 && w !== 6 && !isHoliday(ds)) workingDayStrs.push(ds);
     }
     const workingDays = workingDayStrs.length;
 
