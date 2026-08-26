@@ -3,8 +3,8 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
-import { requestLeave, updateLeaveStatus, getAllLeaves, getLeaveBalances } from "@/app/actions/leave"
+import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2, Paperclip, Upload, X, Download } from "lucide-react"
+import { requestLeave, updateLeaveStatus, getAllLeaves, getLeaveBalances, getLeaveAttachment } from "@/app/actions/leave"
 import { ANNUAL_LEAVE_QUOTA } from "@/lib/leave-constants"
 import { getEmployees } from "@/app/actions/employee"
 import {
@@ -61,6 +61,36 @@ export default function LeavePage() {
     endDate: "",
     reason: "",
   })
+  const [attachmentFile, setAttachmentFile] = React.useState<{ dataUrl: string; fileName: string } | null>(null)
+  const [attachmentError, setAttachmentError] = React.useState("")
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024 // 3MB, before base64 overhead
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAttachmentError("")
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError("Ukuran file maksimal 3MB.")
+      e.target.value = ""
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setAttachmentFile({ dataUrl: reader.result as string, fileName: file.name })
+    }
+    reader.onerror = () => setAttachmentError("Gagal membaca file. Coba lagi.")
+    reader.readAsDataURL(file)
+  }
+
+  // View-attachment dialog state (lazy-loaded on demand to keep list queries light)
+  const [viewAttachment, setViewAttachment] = React.useState<{ name: string; fileName: string | null; dataUrl: string | null; loading: boolean } | null>(null)
+  const openAttachment = async (leaveId: string, employeeName: string, fallbackName: string | null) => {
+    setViewAttachment({ name: employeeName, fileName: fallbackName, dataUrl: null, loading: true })
+    const res = await getLeaveAttachment(leaveId)
+    setViewAttachment(prev => (prev ? { ...prev, dataUrl: res.attachment ?? null, fileName: res.attachmentName ?? prev.fileName, loading: false } : prev))
+  }
 
   const fetchLeaves = React.useCallback(async () => {
     if (!selectedCompany) return
@@ -94,7 +124,8 @@ export default function LeavePage() {
       new Date(formData.endDate),
       formData.reason,
       formData.type,
-      selectedCompany.id
+      selectedCompany.id,
+      attachmentFile
     )
     setIsSubmitting(false)
 
@@ -102,6 +133,8 @@ export default function LeavePage() {
       setOpen(false)
       fetchLeaves()
       setFormData({ employeeId: "", type: "annual", startDate: "", endDate: "", reason: "" })
+      setAttachmentFile(null)
+      setAttachmentError("")
       alert("Pengajuan cuti berhasil dikirim ke Approval Center!")
     } else {
       alert(res.message)
@@ -207,6 +240,36 @@ export default function LeavePage() {
                 <div className="grid gap-4">
                   <Label htmlFor="reason" className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Detailed Reason</Label>
                   <Textarea id="reason" value={formData.reason} onChange={(e) => setFormData(p => ({...p, reason: e.target.value}))} placeholder="Keterangan pengajuan..." className="min-h-[150px] text-xl bg-accent/30 border-border rounded-2xl px-6 py-5 focus-visible:ring-primary font-medium" />
+                </div>
+                <div className="grid gap-4">
+                  <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Lampiran (Surat Sakit / Keterangan)</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  {!attachmentFile ? (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center justify-center gap-3 h-16 border-2 border-dashed border-border rounded-2xl bg-accent/10 hover:bg-accent/20 transition-all text-muted-foreground font-bold"
+                    >
+                      <Upload className="h-5 w-5" /> Upload Foto / PDF (maks. 3MB)
+                    </button>
+                  ) : (
+                    <div className="flex items-center justify-between h-16 px-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Paperclip className="h-5 w-5 text-emerald-600 shrink-0" />
+                        <span className="font-bold text-emerald-700 truncate">{attachmentFile.fileName}</span>
+                      </div>
+                      <button type="button" onClick={() => { setAttachmentFile(null); if (fileInputRef.current) fileInputRef.current.value = "" }} className="shrink-0 text-emerald-700 hover:text-destructive">
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
+                  {attachmentError && <p className="text-sm font-bold text-destructive">{attachmentError}</p>}
                 </div>
             </div>
             <DialogFooter className="pt-6 gap-6">
@@ -370,20 +433,21 @@ export default function LeavePage() {
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Kategori</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Periode</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Status</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Lampiran</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-right pr-12">Action</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isFetching ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-40 text-center">
+                <TableCell colSpan={6} className="h-40 text-center">
                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                    <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
                 </TableCell>
               </TableRow>
             ) : leaveList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada riwayat pengajuan.</TableCell>
+                <TableCell colSpan={6} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada riwayat pengajuan.</TableCell>
               </TableRow>
             ) : leaveList.map((request) => (
               <TableRow key={request.id} className="border-border hover:bg-accent/10 transition-colors h-28">
@@ -415,6 +479,20 @@ export default function LeavePage() {
                     {request.status}
                    </Badge>
                 </TableCell>
+                <TableCell>
+                   {request.hasAttachment ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openAttachment(request.id, request.employeeName, request.attachmentName)}
+                        className="font-bold border-border rounded-xl gap-2"
+                      >
+                        <Paperclip className="h-4 w-4" /> Lihat
+                      </Button>
+                   ) : (
+                      <span className="text-xs text-muted-foreground font-medium">-</span>
+                   )}
+                </TableCell>
                 <TableCell className="text-right pr-12">
                    <Button 
                     variant="outline" 
@@ -434,6 +512,48 @@ export default function LeavePage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* View Attachment Dialog - lazy-loads the file only when opened */}
+      <Dialog open={!!viewAttachment} onOpenChange={(o) => { if (!o) setViewAttachment(null) }}>
+        <DialogContent className="sm:max-w-[600px] bg-popover border-border rounded-[2.5rem] p-8 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">Lampiran — {viewAttachment?.name}</DialogTitle>
+            {viewAttachment?.fileName && (
+              <DialogDescription className="text-sm font-bold">{viewAttachment.fileName}</DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="relative min-h-[300px] max-h-[70vh] bg-accent/10 rounded-3xl overflow-hidden flex items-center justify-center">
+            {viewAttachment?.loading ? (
+              <div className="flex flex-col items-center gap-3 text-muted-foreground py-16">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-[10px] uppercase tracking-widest font-bold">Memuat lampiran...</p>
+              </div>
+            ) : viewAttachment?.dataUrl?.startsWith("data:application/pdf") ? (
+              <iframe title="Lampiran" src={viewAttachment.dataUrl} className="w-full h-[65vh] border-0" />
+            ) : viewAttachment?.dataUrl ? (
+              <img src={viewAttachment.dataUrl} alt="Lampiran" className="max-w-full max-h-[65vh] object-contain" />
+            ) : (
+              <div className="flex flex-col items-center gap-3 text-center text-muted-foreground p-6">
+                <Paperclip className="h-10 w-10 opacity-40" />
+                <p className="text-sm font-bold">Tidak ada lampiran.</p>
+              </div>
+            )}
+          </div>
+          {viewAttachment?.dataUrl && (
+            <DialogFooter>
+              <a
+                href={viewAttachment.dataUrl}
+                download={viewAttachment.fileName || "lampiran"}
+                className="w-full"
+              >
+                <Button variant="outline" className="w-full h-12 rounded-xl font-bold border-border gap-2">
+                  <Download className="h-4 w-4" /> Unduh Lampiran
+                </Button>
+              </a>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

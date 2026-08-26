@@ -2,17 +2,18 @@
 
 import { db } from "@/db";
 import { leaves, employees } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { SICK_TYPES, IMPORTANT_TYPES } from "@/lib/leave-constants";
 
 export async function requestLeave(
-  employeeId: string, 
-  startDate: Date, 
-  endDate: Date, 
-  reason: string, 
+  employeeId: string,
+  startDate: Date,
+  endDate: Date,
+  reason: string,
   type: string = "annual",
-  companyId: string
+  companyId: string,
+  attachment?: { dataUrl: string; fileName: string } | null
 ) {
   try {
     await db.insert(leaves).values({
@@ -24,11 +25,28 @@ export async function requestLeave(
       reason,
       type,
       status: "menunggu",
+      attachment: attachment?.dataUrl ?? null,
+      attachmentName: attachment?.fileName ?? null,
       createdAt: new Date(),
     });
     return { success: true, message: "Pengajuan cuti berhasil dibuat" };
   } catch (error) {
     return { success: false, message: "Gagal mengajukan cuti", error };
+  }
+}
+
+// Fetch a single leave's attachment on demand (kept out of list queries to
+// avoid re-sending potentially large base64 data on every page load).
+export async function getLeaveAttachment(leaveId: string) {
+  try {
+    const rows = await db
+      .select({ attachment: leaves.attachment, attachmentName: leaves.attachmentName })
+      .from(leaves)
+      .where(eq(leaves.id, leaveId))
+      .limit(1);
+    return { success: true, attachment: rows[0]?.attachment ?? null, attachmentName: rows[0]?.attachmentName ?? null };
+  } catch (error) {
+    return { success: false, attachment: null, attachmentName: null, message: "Gagal mengambil lampiran" };
   }
 }
 
@@ -104,14 +122,20 @@ export async function getLeaveBalances(companyId?: string) {
 export async function getAllLeaves(companyId?: string) {
   try {
     if (!companyId) return { success: true, data: [] };
+    // NOTE: never select the `attachment` column here — it can be sizeable
+    // base64 and this list is fetched on every page load. Just flag its
+    // presence; load the actual file on demand via getLeaveAttachment.
     const data = await db.select({
       id: leaves.id,
+      employeeId: leaves.employeeId,
       employeeName: employees.name,
       startDate: leaves.startDate,
       endDate: leaves.endDate,
       reason: leaves.reason,
       type: leaves.type,
       status: leaves.status,
+      hasAttachment: sql<boolean>`${leaves.attachment} is not null`,
+      attachmentName: leaves.attachmentName,
     })
     .from(leaves)
     .leftJoin(employees, eq(leaves.employeeId, employees.id))

@@ -50,6 +50,8 @@ export const leaves = pgTable("leaves", {
   reason: text("reason").notNull(),
   type: text("type").default("annual"), // annual, sick, important, unpaid
   status: text("status", { enum: ["menunggu", "disetujui", "ditolak"] }).default("menunggu"),
+  attachment: text("attachment"), // Lampiran (data URL) mis. surat sakit/keterangan
+  attachmentName: text("attachment_name"), // Nama file asli lampiran
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
 });
 
