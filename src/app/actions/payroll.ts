@@ -248,6 +248,63 @@ export async function getAllPayrolls(companyId?: string) {
   }
 }
 
+// Edit a payroll record after it was generated/approved. Net salary is
+// recomputed from the edited components so it always stays consistent.
+export async function updatePayroll(id: string, fields: {
+  basicSalary?: number;
+  mealAllowance?: number;
+  positionAllowance?: number;
+  competencyAllowance?: number;
+  phoneAllowance?: number;
+  premi?: number;
+  overtimeAmount?: number;
+  overtimeMeal?: number;
+  loanDeduction?: number;
+  shopDeduction?: number;
+  jamsostek?: number;
+  bpjsHealth?: number;
+  lateDeduction?: number;
+  leaveDeduction?: number;
+  otherDeduction?: number;
+}) {
+  try {
+    const n = (v: number | undefined) => (typeof v === "number" && !isNaN(v) ? v : 0);
+    const earnings =
+      n(fields.basicSalary) + n(fields.mealAllowance) + n(fields.positionAllowance) +
+      n(fields.competencyAllowance) + n(fields.phoneAllowance) + n(fields.premi) +
+      n(fields.overtimeAmount) + n(fields.overtimeMeal);
+    const deductions =
+      n(fields.loanDeduction) + n(fields.shopDeduction) + n(fields.jamsostek) +
+      n(fields.bpjsHealth) + n(fields.lateDeduction) + n(fields.leaveDeduction) +
+      n(fields.otherDeduction);
+    const netSalary = earnings - deductions;
+
+    await db.update(payrolls).set({
+      basicSalary: n(fields.basicSalary),
+      mealAllowance: n(fields.mealAllowance),
+      positionAllowance: n(fields.positionAllowance),
+      competencyAllowance: n(fields.competencyAllowance),
+      phoneAllowance: n(fields.phoneAllowance),
+      premi: n(fields.premi),
+      overtimeAmount: n(fields.overtimeAmount),
+      overtimeMeal: n(fields.overtimeMeal),
+      loanDeduction: n(fields.loanDeduction),
+      shopDeduction: n(fields.shopDeduction),
+      jamsostek: n(fields.jamsostek),
+      bpjsHealth: n(fields.bpjsHealth),
+      lateDeduction: n(fields.lateDeduction),
+      leaveDeduction: n(fields.leaveDeduction),
+      otherDeduction: n(fields.otherDeduction),
+      netSalary,
+    }).where(eq(payrolls.id, id));
+
+    return { success: true, message: "Data gaji berhasil diperbarui", netSalary };
+  } catch (error) {
+    console.error("UPDATE_PAYROLL_ERROR:", error);
+    return { success: false, message: "Gagal memperbarui data gaji" };
+  }
+}
+
 import * as XLSX from "xlsx";
 
 export async function generatePayrollTemplate() {

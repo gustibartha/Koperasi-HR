@@ -21,12 +21,14 @@ import {
   Wallet,
   Eye,
   Lock,
+  Pencil,
   Loader2
 } from "lucide-react"
-import { 
-  calculateAndGeneratePayroll, 
-  getAllPayrolls, 
-  generatePayrollTemplate 
+import {
+  calculateAndGeneratePayroll,
+  getAllPayrolls,
+  generatePayrollTemplate,
+  updatePayroll
 } from "@/app/actions/payroll"
 import { getEmployees } from "@/app/actions/employee"
 import {
@@ -70,6 +72,9 @@ export default function PayrollPage() {
   const [openImport, setOpenImport] = React.useState(false)
   const [selectedPayroll, setSelectedPayroll] = React.useState<any>(null)
   const [openViewSlip, setOpenViewSlip] = React.useState(false)
+  const [editPayroll, setEditPayroll] = React.useState<any>(null)
+  const [editForm, setEditForm] = React.useState<Record<string, string>>({})
+  const [editSaving, setEditSaving] = React.useState(false)
   const { selectedCompany } = useCompany()
 
   // Role of the logged-in user (set at login). Only admins may open confidential slips.
@@ -297,6 +302,55 @@ export default function PayrollPage() {
     }
     setSelectedPayroll(data)
     setOpenViewSlip(true)
+  }
+
+  // Editable money fields for a payroll record.
+  const EDIT_FIELDS: { key: string; label: string; kind: "earn" | "deduct" }[] = [
+    { key: "basicSalary", label: "Gaji Pokok", kind: "earn" },
+    { key: "mealAllowance", label: "Uang Makan", kind: "earn" },
+    { key: "positionAllowance", label: "Tunjangan Jabatan", kind: "earn" },
+    { key: "competencyAllowance", label: "Tunjangan Kompetensi", kind: "earn" },
+    { key: "phoneAllowance", label: "Tunjangan HP", kind: "earn" },
+    { key: "premi", label: "Premi", kind: "earn" },
+    { key: "overtimeAmount", label: "Lembur (Jam)", kind: "earn" },
+    { key: "overtimeMeal", label: "Lembur (Makan)", kind: "earn" },
+    { key: "lateDeduction", label: "Denda Terlambat", kind: "deduct" },
+    { key: "leaveDeduction", label: "Potongan Cuti/Izin/Alpha", kind: "deduct" },
+    { key: "loanDeduction", label: "Potongan Pinjaman", kind: "deduct" },
+    { key: "shopDeduction", label: "Potongan Toko", kind: "deduct" },
+    { key: "jamsostek", label: "Jamsostek", kind: "deduct" },
+    { key: "bpjsHealth", label: "BPJS Kesehatan", kind: "deduct" },
+    { key: "otherDeduction", label: "Potongan Lainnya", kind: "deduct" },
+  ]
+
+  const openEdit = (data: any) => {
+    setEditPayroll(data)
+    const f: Record<string, string> = {}
+    EDIT_FIELDS.forEach(({ key }) => { f[key] = formatNumber(String(data[key] ?? 0)) })
+    setEditForm(f)
+  }
+
+  const editNet = () => {
+    const val = (k: string) => parseNumber(editForm[k])
+    const earn = EDIT_FIELDS.filter(f => f.kind === "earn").reduce((s, f) => s + val(f.key), 0)
+    const ded = EDIT_FIELDS.filter(f => f.kind === "deduct").reduce((s, f) => s + val(f.key), 0)
+    return { earn, ded, net: earn - ded }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editPayroll) return
+    setEditSaving(true)
+    const payload: any = {}
+    EDIT_FIELDS.forEach(({ key }) => { payload[key] = parseNumber(editForm[key]) })
+    const res = await updatePayroll(editPayroll.id, payload)
+    setEditSaving(false)
+    if (res.success) {
+      setEditPayroll(null)
+      fetchPayrolls()
+      alert("Data gaji berhasil diperbarui!")
+    } else {
+      alert(res.message)
+    }
   }
 
   const downloadPDFSlip = (data: any) => {
@@ -735,6 +789,17 @@ export default function PayrollPage() {
                 </TableCell>
                 <TableCell className="text-right pr-12">
                   <div className="flex items-center justify-end gap-2">
+                    {isAdmin && (
+                      <Button
+                        onClick={() => openEdit(item)}
+                        variant="outline"
+                        size="icon"
+                        className="h-14 w-14 rounded-2xl border-border hover:bg-primary/10 hover:text-primary transition-all"
+                        title="Edit data gaji"
+                      >
+                        <Pencil className="h-6 w-6" />
+                      </Button>
+                    )}
                     <Button
                       onClick={() => handleViewSlip(item)}
                       variant="outline"
@@ -758,6 +823,71 @@ export default function PayrollPage() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Edit Payroll Dialog */}
+      <Dialog open={!!editPayroll} onOpenChange={(o) => { if (!o) setEditPayroll(null) }}>
+        <DialogContent className="sm:max-w-[820px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-8 pb-5 bg-accent/5 border-b border-border">
+            <DialogTitle className="text-3xl font-bold font-serif">Edit Data Gaji</DialogTitle>
+            {editPayroll && (
+              <DialogDescription className="text-base mt-1">
+                {editPayroll.employeeName} • {editPayroll.month}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          <div className="overflow-y-auto flex-1 p-8 space-y-8">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-emerald-600 mb-4">I. Penerimaan</p>
+              <div className="grid grid-cols-2 gap-5">
+                {EDIT_FIELDS.filter(f => f.kind === "earn").map(f => (
+                  <div key={f.key} className="grid gap-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">{f.label}</Label>
+                    <Input
+                      value={editForm[f.key] ?? ""}
+                      onChange={(e) => setEditForm(p => ({ ...p, [f.key]: formatNumber(e.target.value) }))}
+                      className="h-13 text-lg bg-accent/10 border-border rounded-xl px-4 font-bold"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-red-600 mb-4">II. Potongan</p>
+              <div className="grid grid-cols-2 gap-5">
+                {EDIT_FIELDS.filter(f => f.kind === "deduct").map(f => (
+                  <div key={f.key} className="grid gap-2">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">{f.label}</Label>
+                    <Input
+                      value={editForm[f.key] ?? ""}
+                      onChange={(e) => setEditForm(p => ({ ...p, [f.key]: formatNumber(e.target.value) }))}
+                      className="h-13 text-lg bg-accent/10 border-border rounded-xl px-4 font-bold"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-8 pt-5 bg-accent/5 border-t border-border flex flex-row items-center justify-between gap-4">
+            <div className="text-left">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Take Home Pay (Baru)</p>
+              <p className="text-3xl font-bold text-primary tracking-tighter">{formatCurrency(editNet().net)}</p>
+              <p className="text-[10px] font-medium text-muted-foreground mt-1">
+                {formatCurrency(editNet().earn)} − {formatCurrency(editNet().ded)}
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setEditPayroll(null)} className="h-14 px-8 font-bold border-border rounded-2xl">Batal</Button>
+              <Button onClick={handleSaveEdit} disabled={editSaving} className="h-14 px-10 font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl">
+                {editSaving && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                Simpan Perubahan
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* View Slip Dialog */}
       <Dialog open={openViewSlip} onOpenChange={setOpenViewSlip}>
