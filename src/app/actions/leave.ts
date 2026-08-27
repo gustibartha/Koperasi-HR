@@ -107,10 +107,13 @@ export async function getLeaveBalances(companyId?: string) {
         balances[r.employeeId].sickUsed += days;
       } else if (IMPORTANT_TYPES.includes(type)) {
         balances[r.employeeId].importantCount += 1;
-      } else {
-        // annual + any unknown/default type
+      } else if (type === "annual") {
+        // Only explicit annual-leave (Cuti Tahunan) usage reduces the quota.
         balances[r.employeeId].annualUsed += days;
       }
+      // Any other/unrecognized izin type is approved leave (excused absence,
+      // handled separately for payroll/alpha purposes) but must NOT reduce
+      // the annual leave quota — only actual cuti tahunan usage does.
     }
 
     return { success: true, data: balances };
