@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
   Table,
   TableBody,
@@ -11,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search } from "lucide-react"
-import { getAttendanceRecap, type RecapRow } from "@/app/actions/attendance-recap"
+import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search, FileDown } from "lucide-react"
+import { getAttendanceRecap, exportAttendanceRecapExcel, type RecapRow } from "@/app/actions/attendance-recap"
 import { useCompany } from "@/context/CompanyContext"
 
 export default function AttendanceRecapPage() {
@@ -20,6 +21,7 @@ export default function AttendanceRecapPage() {
   const [month, setMonth] = React.useState(() => new Date().toISOString().slice(0, 7))
   const [rows, setRows] = React.useState<RecapRow[]>([])
   const [isFetching, setIsFetching] = React.useState(true)
+  const [isExporting, setIsExporting] = React.useState(false)
   const [search, setSearch] = React.useState("")
 
   const fetchRecap = React.useCallback(async () => {
@@ -34,6 +36,24 @@ export default function AttendanceRecapPage() {
     fetchRecap()
   }, [fetchRecap])
 
+  const handleExportExcel = async () => {
+    if (!selectedCompany) return
+    setIsExporting(true)
+    const res = await exportAttendanceRecapExcel(selectedCompany.id, month)
+    setIsExporting(false)
+    if (res.success && res.data) {
+      const blob = new Blob([Buffer.from(res.data, "base64")], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `Rekap_Absensi_${selectedCompany.name.replace(/\s+/g, "_")}_${month}.xlsx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+    } else {
+      alert(res.message || "Gagal mengekspor data.")
+    }
+  }
+
   const fmt = (n: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 
@@ -42,6 +62,8 @@ export default function AttendanceRecapPage() {
   const [pY, pM] = month.split("-").map(Number)
   const fmtDate = (d: Date) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
   const periodLabel = `${fmtDate(new Date(pY, pM - 2, 21))} – ${fmtDate(new Date(pY, pM - 1, 20))}`
+  // PT Wira Karya Sinergi uses a fixed-tariff SK formula instead of the generic rate.
+  const usesWksTariff = selectedCompany?.id === "279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e"
 
   const filtered = rows.filter((r) => r.name.toLowerCase().includes(search.toLowerCase()))
 
@@ -59,14 +81,23 @@ export default function AttendanceRecapPage() {
             Penarikan data kehadiran, keterlambatan & alpha yang langsung terhubung ke gaji.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Input
             type="month"
             value={month}
             max={new Date().toISOString().slice(0, 7)}
             onChange={(e) => setMonth(e.target.value || new Date().toISOString().slice(0, 7))}
-            className="h-14 w-auto bg-accent/20 border-border rounded-2xl px-5 font-bold text-lg"
+            className="h-14 w-auto bg-accent/20 border-border text-foreground rounded-2xl px-5 font-bold text-lg [color-scheme:light] dark:[color-scheme:dark]"
           />
+          <Button
+            onClick={handleExportExcel}
+            disabled={isExporting || isFetching || rows.length === 0}
+            variant="outline"
+            className="h-14 px-6 rounded-2xl border-border font-bold gap-2"
+          >
+            {isExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileDown className="h-5 w-5" />}
+            Export Excel
+          </Button>
           <a
             href="/payroll"
             className="inline-flex items-center justify-center h-14 px-6 rounded-2xl bg-primary text-primary-foreground font-bold shadow-xl hover:bg-primary/90 transition-all"
@@ -80,9 +111,21 @@ export default function AttendanceRecapPage() {
       <div className="p-5 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-start gap-3 text-blue-700">
         <Wallet className="h-5 w-5 shrink-0 mt-0.5" />
         <p className="text-sm font-medium">
-          Periode gaji <strong>{monthLabel}</strong> dihitung dari absensi <strong>{periodLabel}</strong> (cut-off tanggal 20).
-          Tarif sama seperti payroll (<strong>telat Rp 5.000/menit</strong>, <strong>alpha Rp 150.000/hari</strong>, <strong>cuti/izin Rp 100.000/hari</strong>),
-          dan otomatis diterapkan saat generate gaji di menu Payroll.
+          Periode gaji <strong>{monthLabel}</strong> dihitung dari absensi <strong>{periodLabel}</strong> (cut-off tanggal 20).{" "}
+          {usesWksTariff ? (
+            <>
+              Entitas ini memakai <strong>tarif tetap sesuai SK PT Wira Karya Sinergi</strong>: keterlambatan &amp; pulang awal
+              dipotong bertingkat (<strong>Rp 10.000 / Rp 20.000 / Rp 30.000</strong> tergantung rentang waktu), dan alpha
+              dihitung <strong>Total Upah × 1/22 × hari alpha</strong> (estimasi berbasis gaji payroll terakhir). Cuti/izin
+              tetap <strong>Rp 100.000/hari</strong>.
+            </>
+          ) : (
+            <>
+              Tarif sama seperti payroll: <strong>telat Rp 5.000/menit</strong>, <strong>alpha Rp 150.000/hari</strong>,{" "}
+              <strong>cuti/izin Rp 100.000/hari</strong>.
+            </>
+          )}{" "}
+          Nilai ini otomatis diterapkan saat generate gaji di menu Payroll.
         </p>
       </div>
 
@@ -184,13 +227,25 @@ export default function AttendanceRecapPage() {
                       {r.presentDays} <span className="text-xs text-muted-foreground font-medium">/ {r.workingDays}</span>
                     </TableCell>
                     <TableCell className="text-center">
-                      <span className="font-bold text-amber-500">{r.lateMinutes} mnt</span>
+                      {r.usesWksTariff ? (
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase">Tarif SK</span>
+                      ) : (
+                        <span className="font-bold text-amber-500">{r.lateMinutes} mnt</span>
+                      )}
                       <br />
                       <span className="text-[10px] font-bold text-muted-foreground uppercase">{r.lateDays} hari</span>
                     </TableCell>
                     <TableCell className="text-right font-bold text-amber-500">{fmt(r.lateDeduction)}</TableCell>
                     <TableCell className="text-center font-bold text-destructive">{r.alphaDays} <span className="text-[10px] text-muted-foreground font-medium">hari</span></TableCell>
-                    <TableCell className="text-right font-bold text-destructive">{fmt(r.alphaDeduction)}</TableCell>
+                    <TableCell className="text-right font-bold text-destructive">
+                      {fmt(r.alphaDeduction)}
+                      {r.usesWksTariff && r.alphaDays > 0 && !r.alphaBasisMonth && (
+                        <div className="text-[9px] font-bold text-muted-foreground normal-case mt-0.5">Belum ada payroll acuan</div>
+                      )}
+                      {r.usesWksTariff && r.alphaBasisMonth && (
+                        <div className="text-[9px] font-bold text-muted-foreground normal-case mt-0.5">Estimasi dr. gaji {r.alphaBasisMonth}</div>
+                      )}
+                    </TableCell>
                     <TableCell className="text-center font-bold">{r.leaveDays} <span className="text-[10px] text-muted-foreground font-medium">hari</span></TableCell>
                     <TableCell className="text-right pr-8 font-bold text-lg text-foreground">{fmt(r.totalDeduction)}</TableCell>
                   </TableRow>

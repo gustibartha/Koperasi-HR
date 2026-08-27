@@ -110,6 +110,17 @@
   --shadow-2xl: 0px 1px 4px 0px hsl(0 0% 0% / 0.13);
 }
 
+/* Native date/month/time/datetime-local inputs otherwise render with the
+   browser's light-mode UI chrome (text + calendar icon) even on our dark
+   theme, making the value/icon nearly invisible. Force them to follow our
+   theme's color-scheme. */
+.dark input[type="date"],
+.dark input[type="month"],
+.dark input[type="time"],
+.dark input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
