@@ -277,6 +277,7 @@ export async function getAllPayrolls(companyId?: string) {
     if (!companyId) return { success: true, data: [] };
     const data = await db.select({
       id: payrolls.id,
+      employeeId: payrolls.employeeId,
       employeeName: employees.name,
       month: payrolls.month,
       basicSalary: payrolls.basicSalary,

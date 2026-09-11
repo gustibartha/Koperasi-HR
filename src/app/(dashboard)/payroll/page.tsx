@@ -22,6 +22,7 @@ import {
   Eye,
   Lock,
   Pencil,
+  RefreshCw,
   Loader2
 } from "lucide-react"
 import {
@@ -30,6 +31,7 @@ import {
   generatePayrollTemplate,
   updatePayroll
 } from "@/app/actions/payroll"
+import { getAttendanceRecap } from "@/app/actions/attendance-recap"
 import { getEmployees } from "@/app/actions/employee"
 import {
   Table,
@@ -75,6 +77,8 @@ export default function PayrollPage() {
   const [editPayroll, setEditPayroll] = React.useState<any>(null)
   const [editForm, setEditForm] = React.useState<Record<string, string>>({})
   const [editSaving, setEditSaving] = React.useState(false)
+  const [syncingRecap, setSyncingRecap] = React.useState(false)
+  const [syncNote, setSyncNote] = React.useState<string | null>(null)
   const { selectedCompany } = useCompany()
 
   // Role of the logged-in user (set at login). Only admins may open confidential slips.
@@ -328,6 +332,7 @@ export default function PayrollPage() {
     const f: Record<string, string> = {}
     EDIT_FIELDS.forEach(({ key }) => { f[key] = formatNumber(String(data[key] ?? 0)) })
     setEditForm(f)
+    setSyncNote(null)
   }
 
   const editNet = () => {
@@ -335,6 +340,43 @@ export default function PayrollPage() {
     const earn = EDIT_FIELDS.filter(f => f.kind === "earn").reduce((s, f) => s + val(f.key), 0)
     const ded = EDIT_FIELDS.filter(f => f.kind === "deduct").reduce((s, f) => s + val(f.key), 0)
     return { earn, ded, net: earn - ded }
+  }
+
+  // Pull the current (live) Rekap Absensi deduction figures for this
+  // employee+month into the edit form, so an already-generated payroll can
+  // be brought in sync with whatever the recap shows today (formulas may
+  // have changed, or attendance data may have been corrected since).
+  const handleSyncFromRecap = async () => {
+    if (!editPayroll || !selectedCompany) return
+    setSyncingRecap(true)
+    setSyncNote(null)
+    const res = await getAttendanceRecap(selectedCompany.id, editPayroll.month)
+    setSyncingRecap(false)
+    if (!res.success) {
+      alert("Gagal mengambil data Rekap Absensi.")
+      return
+    }
+    const match = res.data.find(r => r.employeeId === editPayroll.employeeId)
+    if (!match) {
+      setSyncNote("Tidak ditemukan data rekap untuk pegawai/bulan ini.")
+      return
+    }
+    // The payroll schema stores leave+alpha combined in a single
+    // "leaveDeduction" column (see calculateAndGeneratePayroll), so both
+    // parts of the recap must be summed here — pulling only the recap's
+    // leaveDeduction and dropping alphaDeduction was the root cause of the
+    // Rekap Absensi vs Payroll mismatch.
+    const combinedLeaveAlpha = match.leaveDeduction + match.alphaDeduction
+    setEditForm(prev => ({
+      ...prev,
+      lateDeduction: formatNumber(String(match.lateDeduction)),
+      leaveDeduction: formatNumber(String(combinedLeaveAlpha)),
+    }))
+    setSyncNote(
+      `Ditarik dari Rekap Absensi: Telat Rp ${match.lateDeduction.toLocaleString("id-ID")}, ` +
+      `Cuti/Izin Rp ${match.leaveDeduction.toLocaleString("id-ID")} + Alpha Rp ${match.alphaDeduction.toLocaleString("id-ID")} ` +
+      `= Rp ${combinedLeaveAlpha.toLocaleString("id-ID")}. Klik "Simpan Perubahan" untuk menerapkan.`
+    )
   }
 
   const handleSaveEdit = async () => {
@@ -828,11 +870,29 @@ export default function PayrollPage() {
       <Dialog open={!!editPayroll} onOpenChange={(o) => { if (!o) setEditPayroll(null) }}>
         <DialogContent className="sm:max-w-[820px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
           <DialogHeader className="p-8 pb-5 bg-accent/5 border-b border-border">
-            <DialogTitle className="text-3xl font-bold font-serif">Edit Data Gaji</DialogTitle>
-            {editPayroll && (
-              <DialogDescription className="text-base mt-1">
-                {editPayroll.employeeName} • {editPayroll.month}
-              </DialogDescription>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <DialogTitle className="text-3xl font-bold font-serif">Edit Data Gaji</DialogTitle>
+                {editPayroll && (
+                  <DialogDescription className="text-base mt-1">
+                    {editPayroll.employeeName} • {editPayroll.month}
+                  </DialogDescription>
+                )}
+              </div>
+              <Button
+                onClick={handleSyncFromRecap}
+                disabled={syncingRecap}
+                variant="outline"
+                className="h-11 px-5 rounded-xl font-bold border-border gap-2 shrink-0"
+              >
+                {syncingRecap ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Sinkronkan dari Rekap Absensi
+              </Button>
+            </div>
+            {syncNote && (
+              <p className="text-xs font-bold text-blue-600 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 mt-3">
+                {syncNote}
+              </p>
             )}
           </DialogHeader>
 

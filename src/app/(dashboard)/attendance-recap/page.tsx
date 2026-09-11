@@ -12,9 +12,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search, FileDown } from "lucide-react"
+import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search, FileDown, CalendarDays, LogIn, LogOut } from "lucide-react"
 import { getAttendanceRecap, exportAttendanceRecapExcel, type RecapRow } from "@/app/actions/attendance-recap"
 import { useCompany } from "@/context/CompanyContext"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 
 export default function AttendanceRecapPage() {
   const { selectedCompany } = useCompany()
@@ -23,6 +31,7 @@ export default function AttendanceRecapPage() {
   const [isFetching, setIsFetching] = React.useState(true)
   const [isExporting, setIsExporting] = React.useState(false)
   const [search, setSearch] = React.useState("")
+  const [detailEmployee, setDetailEmployee] = React.useState<RecapRow | null>(null)
 
   const fetchRecap = React.useCallback(async () => {
     if (!selectedCompany) return
@@ -197,20 +206,21 @@ export default function AttendanceRecapPage() {
                 <TableHead className="text-center text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Alpha</TableHead>
                 <TableHead className="text-right text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Potongan Alpha</TableHead>
                 <TableHead className="text-center text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Cuti</TableHead>
-                <TableHead className="text-right pr-8 text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Total Potongan</TableHead>
+                <TableHead className="text-right text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Total Potongan</TableHead>
+                <TableHead className="text-right pr-8 text-muted-foreground font-bold uppercase text-[10px] tracking-[0.2em]">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isFetching ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-40 text-center">
+                  <TableCell colSpan={9} className="h-40 text-center">
                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                     <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">
+                  <TableCell colSpan={9} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">
                     Tidak ada data untuk periode ini.
                   </TableCell>
                 </TableRow>
@@ -247,7 +257,17 @@ export default function AttendanceRecapPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-center font-bold">{r.leaveDays} <span className="text-[10px] text-muted-foreground font-medium">hari</span></TableCell>
-                    <TableCell className="text-right pr-8 font-bold text-lg text-foreground">{fmt(r.totalDeduction)}</TableCell>
+                    <TableCell className="text-right font-bold text-lg text-foreground">{fmt(r.totalDeduction)}</TableCell>
+                    <TableCell className="text-right pr-8">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDetailEmployee(r)}
+                        className="font-bold border-border rounded-xl gap-2"
+                      >
+                        <CalendarDays className="h-4 w-4" /> Detail Harian
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
@@ -255,6 +275,67 @@ export default function AttendanceRecapPage() {
           </Table>
         </div>
       </div>
+
+      {/* Daily In/Out Detail Dialog */}
+      <Dialog open={!!detailEmployee} onOpenChange={(o) => { if (!o) setDetailEmployee(null) }}>
+        <DialogContent className="sm:max-w-[700px] bg-popover border-border rounded-[2.5rem] p-0 shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+          <DialogHeader className="p-8 pb-5 bg-accent/5 border-b border-border">
+            <DialogTitle className="text-2xl font-bold font-serif">Detail Harian — {detailEmployee?.name}</DialogTitle>
+            <DialogDescription className="text-sm font-medium">
+              Jam masuk & keluar tiap hari, periode {periodLabel}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1">
+            <Table>
+              <TableHeader className="bg-accent/20 sticky top-0">
+                <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className="pl-6 text-[10px] font-bold uppercase tracking-widest">Tanggal</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase tracking-widest">Masuk</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase tracking-widest">Keluar</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase tracking-widest">Status</TableHead>
+                  <TableHead className="pr-6 text-[10px] font-bold uppercase tracking-widest">Keterangan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {detailEmployee?.dailyLogs.map((d) => {
+                  const statusStyle: Record<string, string> = {
+                    hadir: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+                    telat: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                    alpha: "bg-red-500/10 text-red-600 border-red-500/20",
+                    libur: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+                    weekend: "bg-accent/30 text-muted-foreground border-border",
+                    izin: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+                  }
+                  const statusLabel: Record<string, string> = {
+                    hadir: "Hadir", telat: "Telat", alpha: "Alpha", libur: "Libur", weekend: "Weekend", izin: "Izin/Cuti",
+                  }
+                  return (
+                    <TableRow key={d.date} className="border-border/60">
+                      <TableCell className="pl-6 text-sm font-bold">{d.dayLabel}</TableCell>
+                      <TableCell className="text-center font-mono text-sm">
+                        {d.clockIn ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600"><LogIn className="h-3 w-3" />{d.clockIn}</span>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell className="text-center font-mono text-sm">
+                        {d.clockOut ? (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground"><LogOut className="h-3 w-3" />{d.clockOut}</span>
+                        ) : "-"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={`px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${statusStyle[d.status]}`}>
+                          {statusLabel[d.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="pr-6 text-xs text-muted-foreground font-medium">{d.note || "-"}</TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

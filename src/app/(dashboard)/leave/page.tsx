@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2, Paperclip, Upload, X, Download } from "lucide-react"
 import { requestLeave, updateLeaveStatus, getAllLeaves, getLeaveBalances, getLeaveAttachment } from "@/app/actions/leave"
-import { ANNUAL_LEAVE_QUOTA } from "@/lib/leave-constants"
+import { ANNUAL_LEAVE_QUOTA, LEAVE_TYPE_LABELS } from "@/lib/leave-constants"
 import { getEmployees } from "@/app/actions/employee"
 import {
   Table,
@@ -49,10 +49,10 @@ export default function LeavePage() {
   const [leaveList, setLeaveList] = React.useState<any[]>([])
   const [employeeList, setEmployeeList] = React.useState<any[]>([])
   const [selectedEmployee, setSelectedEmployee] = React.useState<any>(null)
-  const [balances, setBalances] = React.useState<Record<string, { annualUsed: number; sickUsed: number; importantCount: number }>>({})
+  const [balances, setBalances] = React.useState<Record<string, { annualUsed: number; sickUsed: number; importantCount: number; dinasDays: number }>>({})
   const { selectedCompany } = useCompany()
 
-  const getBalance = (empId: string) => balances[empId] || { annualUsed: 0, sickUsed: 0, importantCount: 0 }
+  const getBalance = (empId: string) => balances[empId] || { annualUsed: 0, sickUsed: 0, importantCount: 0, dinasDays: 0 }
 
   const [formData, setFormData] = React.useState({
     employeeId: "",
@@ -224,6 +224,10 @@ export default function LeavePage() {
                       <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="birth_wife">Istri Melahirkan (2 Hari)</SelectItem>
                       <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="death_immediate">Keluarga Inti Meninggal (2 Hari)</SelectItem>
                     </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel className="text-primary font-bold px-5 py-2 text-sm uppercase tracking-widest border-t border-border mt-2">Dinas</SelectLabel>
+                      <SelectItem className="text-base py-2.5 px-5 rounded-xl font-bold" value="dinas">Perjalanan Dinas (Tidak Mengurangi Cuti)</SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
@@ -346,20 +350,21 @@ export default function LeavePage() {
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-center">Cuti Tahunan</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-center">Alasan Penting</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-center">Izin Sakit</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-center">Dinas</TableHead>
               <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-right pr-12">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isFetching ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-40 text-center">
+                <TableCell colSpan={6} className="h-40 text-center">
                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
                    <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
                 </TableCell>
               </TableRow>
             ) : employeeList.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada data pegawai.</TableCell>
+                <TableCell colSpan={6} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada data pegawai.</TableCell>
               </TableRow>
             ) : employeeList.map((emp) => (
               <TableRow key={emp.id} className="border-border hover:bg-accent/10 transition-colors h-24">
@@ -374,6 +379,7 @@ export default function LeavePage() {
                 </TableCell>
                 <TableCell className="text-center text-xl font-bold text-foreground">{getBalance(emp.id).importantCount} <span className="text-xs text-muted-foreground font-medium">Kali</span></TableCell>
                 <TableCell className="text-center text-xl font-bold text-foreground">{getBalance(emp.id).sickUsed} <span className="text-xs text-muted-foreground font-medium">Hari</span></TableCell>
+                <TableCell className="text-center text-xl font-bold text-blue-500">{getBalance(emp.id).dinasDays} <span className="text-xs text-muted-foreground font-medium">Hari</span></TableCell>
                 <TableCell className="text-right pr-12">
                    <Dialog>
                      <DialogTrigger render={<Button variant="outline" className="h-12 px-6 font-bold border-border rounded-xl hover:bg-primary hover:text-white transition-all">
@@ -404,6 +410,11 @@ export default function LeavePage() {
                               <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Izin Sakit</span>
                               <span className="text-3xl font-bold text-foreground">{getBalance(emp.id).sickUsed} <span className="text-sm font-medium">Hari</span></span>
                            </div>
+                           <div className="flex justify-between items-center p-6 bg-blue-500/10 rounded-2xl border border-blue-500/20">
+                              <span className="font-bold text-lg text-muted-foreground uppercase tracking-widest text-xs">Perjalanan Dinas</span>
+                              <span className="text-3xl font-bold text-blue-500">{getBalance(emp.id).dinasDays} <span className="text-sm font-medium">Hari</span></span>
+                           </div>
+                           <p className="text-xs text-muted-foreground italic px-1">Perjalanan dinas tidak mengurangi jatah cuti tahunan dan tidak memotong gaji.</p>
                         </div>
 
                         <DialogFooter>
@@ -462,7 +473,7 @@ export default function LeavePage() {
                 <TableCell className="font-bold text-foreground text-xl">
                    <div className="flex items-center gap-3">
                     <CalendarIcon className="h-5 w-5 text-primary/60" />
-                    Cuti / Izin
+                    {LEAVE_TYPE_LABELS[request.type] || "Cuti / Izin"}
                    </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground text-lg font-bold">

@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { leaves, employees } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { SICK_TYPES, IMPORTANT_TYPES } from "@/lib/leave-constants";
+import { SICK_TYPES, IMPORTANT_TYPES, DINAS_TYPES } from "@/lib/leave-constants";
 
 export async function requestLeave(
   employeeId: string,
@@ -94,12 +94,12 @@ export async function getLeaveBalances(companyId?: string) {
     .from(leaves)
     .where(eq(leaves.companyId, companyId));
 
-    const balances: Record<string, { annualUsed: number; sickUsed: number; importantCount: number }> = {};
+    const balances: Record<string, { annualUsed: number; sickUsed: number; importantCount: number; dinasDays: number }> = {};
 
     for (const r of rows) {
       if (r.status !== "disetujui") continue;
       if (!balances[r.employeeId]) {
-        balances[r.employeeId] = { annualUsed: 0, sickUsed: 0, importantCount: 0 };
+        balances[r.employeeId] = { annualUsed: 0, sickUsed: 0, importantCount: 0, dinasDays: 0 };
       }
       const days = dayCount(r.startDate, r.endDate);
       const type = r.type || "annual";
@@ -107,6 +107,8 @@ export async function getLeaveBalances(companyId?: string) {
         balances[r.employeeId].sickUsed += days;
       } else if (IMPORTANT_TYPES.includes(type)) {
         balances[r.employeeId].importantCount += 1;
+      } else if (DINAS_TYPES.includes(type)) {
+        balances[r.employeeId].dinasDays += days;
       } else if (type === "annual") {
         // Only explicit annual-leave (Cuti Tahunan) usage reduces the quota.
         balances[r.employeeId].annualUsed += days;

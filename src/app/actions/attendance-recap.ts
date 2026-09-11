@@ -3,7 +3,8 @@
 import { db } from "@/db";
 import { employees, attendances, leaves, payrolls } from "@/db/schema";
 import { eq, and, gte, lt, desc } from "drizzle-orm";
-import { isHoliday } from "@/lib/holidays";
+import { isHoliday, holidayName } from "@/lib/holidays";
+import { LEAVE_TYPE_LABELS } from "@/lib/leave-constants";
 
 // Same rates/rules used by payroll (calculateAndGeneratePayroll) so this recap
 // matches exactly the attendance-based deductions that flow into salary.
@@ -29,6 +30,15 @@ const wibMinutesOfDay = (d: Date) => {
   return w.getUTCHours() * 60 + w.getUTCMinutes();
 };
 
+export type DailyLog = {
+  date: string; // YYYY-MM-DD
+  dayLabel: string; // e.g. "Selasa, 21 Jul 2026"
+  clockIn: string | null; // "07:15" (WIB)
+  clockOut: string | null; // "16:32" (WIB)
+  status: "hadir" | "telat" | "alpha" | "libur" | "weekend" | "izin";
+  note?: string; // holiday name, leave type label, etc.
+};
+
 export type RecapRow = {
   employeeId: string;
   name: string;
@@ -45,6 +55,19 @@ export type RecapRow = {
   totalDeduction: number;
   usesWksTariff: boolean;
   alphaBasisMonth: string | null; // month of the payroll row used to estimate WKS alpha (Total Upah)
+  dailyLogs: DailyLog[]; // every calendar day in the 21st→20th cut-off period
+};
+
+const DAY_NAMES_ID = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const MONTH_NAMES_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const wibHHMM = (d: Date) => {
+  const w = new Date(d.getTime() + WIB_OFFSET_MS);
+  return `${String(w.getUTCHours()).padStart(2, "0")}:${String(w.getUTCMinutes()).padStart(2, "0")}`;
+};
+const dayLabelFor = (ds: string) => {
+  const [y, mo, da] = ds.split("-").map(Number);
+  const d = new Date(Date.UTC(y, mo - 1, da));
+  return `${DAY_NAMES_ID[d.getUTCDay()]}, ${da} ${MONTH_NAMES_ID[mo - 1]} ${y}`;
 };
 
 export async function getAttendanceRecap(companyId?: string, month?: string) {
@@ -132,11 +155,19 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
     const data: RecapRow[] = emps.map((emp) => {
       const empAtts = atts.filter((a) => a.employeeId === emp.id && a.clockIn);
 
+      // Per-day clock in/out (WIB) for the daily log table.
+      const attByDate = new Map<string, { clockIn: Date; clockOut: Date | null }>();
+      empAtts.forEach((a) => {
+        const ci = new Date(a.clockIn as Date);
+        attByDate.set(wibDayStr(ci), { clockIn: ci, clockOut: a.clockOut ? new Date(a.clockOut) : null });
+      });
+
       // Present dates + lateness (all in WIB). Under the WKS SK, a day the
       // employee clocked in extremely late (>=12:01) or left extremely early
       // (<13:30) counts as a full Alfa day instead — tracked separately.
       const presentDates = new Set<string>();
       const wksAlfaOverrideDates = new Set<string>();
+      const lateDates = new Set<string>(); // late-but-not-alfa dates, for the daily log status
       let lateMinutes = 0;
       let lateDays = 0;
       let wksTariffDeduction = 0;
@@ -170,7 +201,7 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
             wksAlfaOverrideDates.add(wibDayStr(ci));
           } else {
             wksTariffDeduction += fee;
-            if (fee > 0) lateDays++;
+            if (fee > 0) { lateDays++; lateDates.add(wibDayStr(ci)); }
             presentDates.add(wibDayStr(ci));
           }
         } else {
@@ -178,12 +209,14 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
           if (modIn > SHIFT_MIN) {
             lateMinutes += modIn - SHIFT_MIN;
             lateDays++;
+            lateDates.add(wibDayStr(ci));
           }
         }
       });
 
       // Approved leave dates + paid-leave deduction
       const leaveDates = new Set<string>();
+      const leaveTypeByDate = new Map<string, string>(); // for the daily log's "izin" note
       let leaveDays = 0;
       let leaveDeduction = 0;
       lvs
@@ -195,7 +228,9 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
           leaveDays += diff;
           for (let i = 0; i < diff; i++) {
             const dd = new Date(s.getTime() + i * 24 * 60 * 60 * 1000);
-            leaveDates.add(wibDayStr(dd));
+            const ds = wibDayStr(dd);
+            leaveDates.add(ds);
+            leaveTypeByDate.set(ds, l.type || "annual");
           }
           if (l.type === "annual" || l.type === "important" || l.type === "unpaid") {
             leaveDeduction += diff * LEAVE_RATE;
@@ -222,6 +257,48 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
         alphaDeduction = alphaDays * ALPHA_RATE;
       }
 
+      // Day-by-day masuk/keluar for every calendar day in the cut-off period
+      // (21st prev month → 20th selected month), as requested for the recap.
+      const dailyLogs: DailyLog[] = [];
+      for (
+        let dd = new Date(Date.UTC(year, m - 2, 21));
+        dd <= new Date(Date.UTC(year, m - 1, 20));
+        dd.setUTCDate(dd.getUTCDate() + 1)
+      ) {
+        const ds = dd.toISOString().split("T")[0];
+        const dow = dd.getUTCDay();
+        const att = attByDate.get(ds);
+        const holiday = holidayName(ds);
+
+        let status: DailyLog["status"];
+        let note: string | undefined;
+        if (att && wksAlfaOverrideDates.has(ds)) {
+          status = "alpha";
+          note = "Di luar batas jam SK (dihitung Alfa)";
+        } else if (holiday) {
+          status = "libur";
+          note = holiday;
+        } else if (dow === 0 || dow === 6) {
+          status = "weekend";
+        } else if (att) {
+          status = lateDates.has(ds) ? "telat" : "hadir";
+        } else if (leaveDates.has(ds)) {
+          status = "izin";
+          note = LEAVE_TYPE_LABELS[leaveTypeByDate.get(ds) || ""] || "Izin";
+        } else {
+          status = "alpha";
+        }
+
+        dailyLogs.push({
+          date: ds,
+          dayLabel: dayLabelFor(ds),
+          clockIn: att ? wibHHMM(att.clockIn) : null,
+          clockOut: att?.clockOut ? wibHHMM(att.clockOut) : null,
+          status,
+          note,
+        });
+      }
+
       return {
         employeeId: emp.id,
         name: emp.name,
@@ -238,6 +315,7 @@ export async function getAttendanceRecap(companyId?: string, month?: string) {
         totalDeduction: lateDeduction + alphaDeduction + leaveDeduction,
         usesWksTariff: useWksTariff,
         alphaBasisMonth,
+        dailyLogs,
       };
     });
 
@@ -278,6 +356,27 @@ export async function exportAttendanceRecapExcel(companyId?: string, month?: str
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
+
+    // Second sheet: day-by-day masuk/keluar for every employee, stacked.
+    const STATUS_LABELS: Record<string, string> = {
+      hadir: "Hadir", telat: "Telat", alpha: "Alpha", libur: "Libur", weekend: "Weekend", izin: "Izin/Cuti",
+    };
+    const dailyRows = res.data.flatMap((r) =>
+      r.dailyLogs.map((d) => ({
+        "Nama Pegawai": r.name,
+        "Tanggal": d.date,
+        "Hari": d.dayLabel,
+        "Jam Masuk": d.clockIn || "-",
+        "Jam Keluar": d.clockOut || "-",
+        "Status": STATUS_LABELS[d.status] || d.status,
+        "Keterangan": d.note || "",
+      }))
+    );
+    const wsDaily = XLSX.utils.json_to_sheet(dailyRows);
+    wsDaily["!cols"] = [
+      { wch: 24 }, { wch: 12 }, { wch: 22 }, { wch: 11 }, { wch: 11 }, { wch: 12 }, { wch: 28 },
+    ];
+    XLSX.utils.book_append_sheet(wb, wsDaily, "Detail Harian");
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
     return { success: true, data: buf.toString("base64") };
