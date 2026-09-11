@@ -88,6 +88,7 @@ export async function getAllAttendances(companyId?: string) {
       locationGps: attendances.locationGps,
       hasPhoto: sql<boolean>`${attendances.photo} is not null`,
       biometricValid: attendances.biometricValid,
+      isManual: attendances.isManual,
     })
     .from(attendances)
     .leftJoin(employees, eq(attendances.employeeId, employees.id))

@@ -20,6 +20,7 @@ import {
 } from "lucide-react"
 import { getAllSppds, updateSppdStatus } from "@/app/actions/sppd"
 import { getAllLeaves, updateLeaveStatus } from "@/app/actions/leave"
+import { getAllAttendanceCorrections, updateAttendanceCorrectionStatus } from "@/app/actions/attendance-correction"
 import { useCompany } from "@/context/CompanyContext"
 import {
   Dialog,
@@ -62,6 +63,7 @@ export default function ApprovalCenterPage() {
     setIsFetching(true)
     const sppdRes = await getAllSppds(selectedCompany.id)
     const leaveRes = await getAllLeaves(selectedCompany.id)
+    const correctionRes = await getAllAttendanceCorrections(selectedCompany.id)
 
     const approvalWorkflow = getApprovalHierarchy()
 
@@ -87,7 +89,18 @@ export default function ApprovalCenterPage() {
       currentStage: 0
     }))
 
-    setRequests([...sppdRequests, ...leaveRequests])
+    const correctionRequests = (correctionRes.data || []).filter((r: any) => r.status === "menunggu").map((r: any) => ({
+      ...r,
+      type: "PRESENSI",
+      employee: r.employeeName,
+      detail: r.reason,
+      date: `${new Date(r.date).toLocaleDateString()} • ${new Date(r.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${r.clockOut ? " - " + new Date(r.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}`,
+      amount: "Lupa Absen",
+      workflow: approvalWorkflow,
+      currentStage: 0
+    }))
+
+    setRequests([...sppdRequests, ...leaveRequests, ...correctionRequests])
     setIsFetching(false)
   }, [selectedCompany])
 
@@ -101,6 +114,8 @@ export default function ApprovalCenterPage() {
     
     if (type === "SPPD") {
       await updateSppdStatus(id, status)
+    } else if (type === "PRESENSI") {
+      await updateAttendanceCorrectionStatus(id, status)
     } else {
       await updateLeaveStatus(id, status)
     }
@@ -154,16 +169,16 @@ export default function ApprovalCenterPage() {
             >
               <CardContent className="p-0">
                 <div className="flex flex-col md:flex-row items-stretch">
-                   <div className={`w-2 md:w-4 ${req.type === 'SPPD' ? 'bg-primary' : 'bg-blue-500'}`}></div>
-                   
+                   <div className={`w-2 md:w-4 ${req.type === 'SPPD' ? 'bg-primary' : req.type === 'PRESENSI' ? 'bg-amber-500' : 'bg-blue-500'}`}></div>
+
                    <div className="flex-1 p-8 sm:p-10 flex flex-col lg:flex-row items-center justify-between gap-10">
                      <div className="flex items-center gap-8 flex-1 min-w-0">
                         <div className={`h-20 w-20 rounded-3xl flex items-center justify-center shrink-0 shadow-lg ${
-                          req.type === 'SPPD' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-500'
+                          req.type === 'SPPD' ? 'bg-primary/10 text-primary' : req.type === 'PRESENSI' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'
                         }`}>
-                          {req.type === 'SPPD' ? <Plane className="h-10 w-10" /> : <Calendar className="h-10 w-10" />}
+                          {req.type === 'SPPD' ? <Plane className="h-10 w-10" /> : req.type === 'PRESENSI' ? <Clock className="h-10 w-10" /> : <Calendar className="h-10 w-10" />}
                         </div>
-                        
+
                         <div className="space-y-2 min-w-0">
                            <div className="flex items-center gap-3">
                               <Badge className="bg-accent/30 text-muted-foreground border-none font-bold text-[10px] tracking-widest uppercase rounded-lg px-3">

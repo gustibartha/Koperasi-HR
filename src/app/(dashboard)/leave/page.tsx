@@ -3,8 +3,9 @@
 import * as React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2, Paperclip, Upload, X, Download } from "lucide-react"
+import { Plus, Calendar as CalendarIcon, FileText, Search, Users, UserCheck, Clock, Info, CheckCircle2, AlertCircle, Loader2, Paperclip, Upload, X, Download, ClipboardEdit, LogIn, LogOut } from "lucide-react"
 import { requestLeave, updateLeaveStatus, getAllLeaves, getLeaveBalances, getLeaveAttachment } from "@/app/actions/leave"
+import { requestAttendanceCorrection, getAllAttendanceCorrections, updateAttendanceCorrectionStatus } from "@/app/actions/attendance-correction"
 import { ANNUAL_LEAVE_QUOTA, LEAVE_TYPE_LABELS } from "@/lib/leave-constants"
 import { getEmployees } from "@/app/actions/employee"
 import {
@@ -67,6 +68,18 @@ export default function LeavePage() {
 
   const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024 // 3MB, before base64 overhead
 
+  // ===== Lupa Absen / Presensi Manual =====
+  const [openCorrection, setOpenCorrection] = React.useState(false)
+  const [correctionList, setCorrectionList] = React.useState<any[]>([])
+  const [isSubmittingCorrection, setIsSubmittingCorrection] = React.useState(false)
+  const [correctionForm, setCorrectionForm] = React.useState({
+    employeeId: "",
+    date: "",
+    clockIn: "",
+    clockOut: "",
+    reason: "",
+  })
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -103,6 +116,9 @@ export default function LeavePage() {
 
     const balRes = await getLeaveBalances(selectedCompany.id)
     if (balRes.success) setBalances(balRes.data || {})
+
+    const corrRes = await getAllAttendanceCorrections(selectedCompany.id)
+    if (corrRes.success) setCorrectionList(corrRes.data || [])
 
     setIsFetching(false)
   }, [selectedCompany])
@@ -143,6 +159,41 @@ export default function LeavePage() {
 
   const handleStatusUpdate = async (id: string, status: any) => {
     const res = await updateLeaveStatus(id, status)
+    if (res.success) {
+      fetchLeaves()
+    } else {
+      alert(res.message)
+    }
+  }
+
+  const handleSubmitCorrection = async () => {
+    const { employeeId, date, clockIn, reason } = correctionForm
+    if (!employeeId || !date || !clockIn || !reason) {
+      alert("Mohon lengkapi pegawai, tanggal, jam masuk, dan alasan.")
+      return
+    }
+    setIsSubmittingCorrection(true)
+    const res = await requestAttendanceCorrection(
+      employeeId,
+      selectedCompany.id,
+      new Date(date),
+      clockIn,
+      correctionForm.clockOut || null,
+      reason
+    )
+    setIsSubmittingCorrection(false)
+    if (res.success) {
+      setOpenCorrection(false)
+      fetchLeaves()
+      setCorrectionForm({ employeeId: "", date: "", clockIn: "", clockOut: "", reason: "" })
+      alert("Pengajuan presensi manual berhasil dikirim ke Approval Center!")
+    } else {
+      alert(res.message)
+    }
+  }
+
+  const handleCorrectionStatusUpdate = async (id: string, status: any) => {
+    const res = await updateAttendanceCorrectionStatus(id, status)
     if (res.success) {
       fetchLeaves()
     } else {
@@ -515,6 +566,143 @@ export default function LeavePage() {
                     variant="outline" 
                     size="sm" 
                     onClick={() => handleStatusUpdate(request.id, "ditolak")}
+                    className="border-destructive text-destructive hover:bg-destructive hover:text-white rounded-xl font-bold"
+                   >Tolak</Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Lupa Absen / Presensi Manual */}
+      <div className="rounded-[3rem] border border-border bg-card shadow-2xl overflow-hidden">
+        <div className="px-12 py-10 border-b border-border bg-accent/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <h3 className="text-3xl font-bold tracking-tight text-foreground font-serif">Lupa Absen / Presensi Manual</h3>
+            <p className="text-xl text-muted-foreground font-medium">Pengajuan koreksi bagi pegawai yang lupa clock-in/out padahal masuk kerja.</p>
+          </div>
+          <Dialog open={openCorrection} onOpenChange={setOpenCorrection}>
+            <DialogTrigger render={<Button className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8 h-14 text-lg rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] shrink-0">
+              <ClipboardEdit className="mr-3 h-6 w-6 stroke-[2.5]" /> Ajukan Presensi Manual
+            </Button>} />
+            <DialogContent className="sm:max-w-[650px] bg-popover border-border rounded-[2.5rem] p-12 shadow-2xl overflow-y-auto max-h-[90vh]">
+              <DialogHeader className="space-y-6">
+                <DialogTitle className="text-4xl font-bold tracking-tight font-serif text-foreground">Ajukan Presensi Manual</DialogTitle>
+                <DialogDescription className="text-xl text-muted-foreground">
+                  Untuk pegawai yang lupa absen (clock-in/out) padahal hadir bekerja. Setelah disetujui, sistem akan mencatat kehadiran hari itu secara otomatis.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-8 py-8">
+                <div className="grid gap-4">
+                  <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Pilih Pegawai</Label>
+                  <Select onValueChange={(val) => setCorrectionForm(prev => ({ ...prev, employeeId: val }))}>
+                    <SelectTrigger className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus:ring-primary font-bold">
+                      <SelectValue placeholder="Pilih Pegawai..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-popover border-border rounded-2xl">
+                      {employeeList.map(emp => (
+                        <SelectItem key={emp.id} value={emp.id} className="text-lg py-3 px-5 rounded-xl font-bold">{emp.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-4">
+                  <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Tanggal Lupa Absen</Label>
+                  <Input type="date" value={correctionForm.date} onChange={(e) => setCorrectionForm(p => ({ ...p, date: e.target.value }))} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" />
+                </div>
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="grid gap-4">
+                    <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Jam Masuk</Label>
+                    <Input type="time" value={correctionForm.clockIn} onChange={(e) => setCorrectionForm(p => ({ ...p, clockIn: e.target.value }))} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" />
+                  </div>
+                  <div className="grid gap-4">
+                    <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Jam Keluar (Opsional)</Label>
+                    <Input type="time" value={correctionForm.clockOut} onChange={(e) => setCorrectionForm(p => ({ ...p, clockOut: e.target.value }))} className="h-16 text-xl bg-accent/30 border-border rounded-2xl px-6 focus-visible:ring-primary font-bold" />
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  <Label className="text-sm font-bold uppercase tracking-[0.2em] text-primary ml-1">Alasan</Label>
+                  <Textarea value={correctionForm.reason} onChange={(e) => setCorrectionForm(p => ({ ...p, reason: e.target.value }))} placeholder="Mis. HP mati, lupa absen, kendala jaringan..." className="min-h-[120px] text-xl bg-accent/30 border-border rounded-2xl px-6 py-5 focus-visible:ring-primary font-medium" />
+                </div>
+              </div>
+              <DialogFooter className="pt-6 gap-6">
+                <Button variant="outline" onClick={() => setOpenCorrection(false)} className="h-16 px-10 text-xl font-bold border-border rounded-2xl hover:bg-accent transition-all">
+                  Cancel
+                </Button>
+                <Button onClick={handleSubmitCorrection} disabled={isSubmittingCorrection} className="h-16 px-12 text-xl font-bold bg-primary text-primary-foreground rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">
+                  {isSubmittingCorrection && <Loader2 className="mr-2 h-6 w-6 animate-spin" />}
+                  Submit Request
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+        <Table>
+          <TableHeader className="bg-accent/20">
+            <TableRow className="hover:bg-transparent border-border h-24">
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] pl-12">Nama Pegawai</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Tanggal</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Jam Masuk - Keluar</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Alasan</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em]">Status</TableHead>
+              <TableHead className="text-muted-foreground font-bold uppercase text-xs tracking-[0.2em] text-right pr-12">Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isFetching ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-40 text-center">
+                   <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                   <p className="text-muted-foreground mt-2 font-bold uppercase tracking-widest text-[10px]">Memuat Data...</p>
+                </TableCell>
+              </TableRow>
+            ) : correctionList.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-40 text-center text-muted-foreground font-bold uppercase tracking-widest text-xs">Belum ada pengajuan presensi manual.</TableCell>
+              </TableRow>
+            ) : correctionList.map((c) => (
+              <TableRow key={c.id} className="border-border hover:bg-accent/10 transition-colors h-28">
+                <TableCell className="pl-12">
+                   <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-accent flex items-center justify-center font-bold text-primary shadow-inner text-xs">
+                         {c.employeeName?.split(' ').map((n: string) => n[0]).join('') || "?"}
+                      </div>
+                      <span className="font-bold text-xl text-foreground">{c.employeeName}</span>
+                   </div>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-lg font-bold">
+                  {new Date(c.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </TableCell>
+                <TableCell className="font-mono font-bold text-foreground">
+                   <span className="inline-flex items-center gap-1 text-emerald-600"><LogIn className="h-4 w-4" />{new Date(c.clockIn).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                   {c.clockOut && (
+                      <> {" - "}<span className="inline-flex items-center gap-1 text-muted-foreground"><LogOut className="h-4 w-4" />{new Date(c.clockOut).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span></>
+                   )}
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm font-medium max-w-[220px] truncate">{c.reason}</TableCell>
+                <TableCell>
+                   <Badge className={`px-5 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border shadow-none ${
+                    c.status === 'disetujui'
+                      ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                      : c.status === 'menunggu'
+                      ? 'bg-primary/10 text-primary border-primary/20'
+                      : 'bg-destructive/10 text-destructive border-destructive/20'
+                   }`}>
+                    {c.status}
+                   </Badge>
+                </TableCell>
+                <TableCell className="text-right pr-12">
+                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCorrectionStatusUpdate(c.id, "disetujui")}
+                    className="mr-2 border-emerald-500 text-emerald-500 hover:bg-emerald-500 hover:text-white rounded-xl font-bold"
+                   >Setujui</Button>
+                   <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCorrectionStatusUpdate(c.id, "ditolak")}
                     className="border-destructive text-destructive hover:bg-destructive hover:text-white rounded-xl font-bold"
                    >Tolak</Button>
                 </TableCell>

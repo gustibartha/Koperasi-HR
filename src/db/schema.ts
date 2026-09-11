@@ -37,6 +37,20 @@ export const attendances = pgTable("attendances", {
   locationGps: text("location_gps"),
   photo: text("photo"), // Face-verification photo at clock-in (data URL, downscaled JPEG)
   biometricValid: boolean("biometric_valid"), // SQLite boolean is 0/1
+  isManual: boolean("is_manual").default(false), // Inserted via an approved "Presensi Manual" request, not a real clock-in
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+});
+
+// Table Pengajuan Lupa Absen / Presensi Manual
+export const attendanceCorrections = pgTable("attendance_corrections", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").references(() => companies.id),
+  employeeId: text("employee_id").notNull().references(() => employees.id),
+  date: timestamp("date", { mode: "date" }).notNull(), // the day being corrected
+  clockIn: timestamp("clock_in", { mode: "date" }).notNull(),
+  clockOut: timestamp("clock_out", { mode: "date" }),
+  reason: text("reason").notNull(),
+  status: text("status", { enum: ["menunggu", "disetujui", "ditolak"] }).default("menunggu"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
 });
 

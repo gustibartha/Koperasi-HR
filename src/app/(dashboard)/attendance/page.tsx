@@ -19,7 +19,8 @@ import {
   X,
   History,
   TrendingDown,
-  Loader2
+  Loader2,
+  ClipboardEdit
 } from "lucide-react"
 import { clockIn, clockOut, getAllAttendances, getAttendancePhoto } from "@/app/actions/attendance"
 import { getEmployees } from "@/app/actions/employee"
@@ -641,7 +642,11 @@ export default function AttendancePage() {
                                     </Badge>
                                  </TableCell>
                                  <TableCell className="pr-8 text-right">
-                                    {log.locationGps ? (
+                                    {log.isManual ? (
+                                       <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-500" title="Diinput manual via pengajuan Lupa Absen">
+                                          <ClipboardEdit className="h-4 w-4" /> Presensi Manual
+                                       </span>
+                                    ) : log.locationGps ? (
                                        <a
                                           href={`https://www.google.com/maps?q=${log.locationGps}`}
                                           target="_blank"
