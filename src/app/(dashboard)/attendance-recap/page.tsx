@@ -12,9 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search, FileDown, CalendarDays, LogIn, LogOut } from "lucide-react"
+import { Clock, AlertCircle, CalendarX, Wallet, Loader2, ArrowRight, Search, FileDown, CalendarDays, LogIn, LogOut, Printer } from "lucide-react"
 import { getAttendanceRecap, exportAttendanceRecapExcel, type RecapRow } from "@/app/actions/attendance-recap"
 import { useCompany } from "@/context/CompanyContext"
+import jsPDF from "jspdf"
+import autoTable from "jspdf-autotable"
 import {
   Dialog,
   DialogContent,
@@ -30,6 +32,7 @@ export default function AttendanceRecapPage() {
   const [rows, setRows] = React.useState<RecapRow[]>([])
   const [isFetching, setIsFetching] = React.useState(true)
   const [isExporting, setIsExporting] = React.useState(false)
+  const [isPrinting, setIsPrinting] = React.useState(false)
   const [search, setSearch] = React.useState("")
   const [detailEmployee, setDetailEmployee] = React.useState<RecapRow | null>(null)
 
@@ -71,6 +74,79 @@ export default function AttendanceRecapPage() {
   const [pY, pM] = month.split("-").map(Number)
   const fmtDate = (d: Date) => d.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
   const periodLabel = `${fmtDate(new Date(pY, pM - 2, 21))} – ${fmtDate(new Date(pY, pM - 1, 20))}`
+
+  const STATUS_LABELS: Record<string, string> = {
+    hadir: "Hadir", telat: "Telat", alpha: "Alpha", libur: "Libur", weekend: "Weekend", izin: "Izin/Cuti",
+  }
+
+  // Printable PDF: summary page + one detail page per employee, with blank
+  // "Lembur" and "Potongan Tambahan" columns so it can be filled by hand and
+  // used as the source document for manual overtime/deduction entry in Payroll.
+  const handlePrintPDF = () => {
+    if (rows.length === 0) return
+    setIsPrinting(true)
+    try {
+      const doc = new jsPDF({ orientation: "landscape" })
+      const pageWidth = doc.internal.pageSize.getWidth()
+
+      doc.setFontSize(16)
+      doc.setFont("helvetica", "bold")
+      doc.text(selectedCompany?.name || "KOPERASI HR", pageWidth / 2, 15, { align: "center" })
+      doc.setFontSize(11)
+      doc.setFont("helvetica", "normal")
+      doc.text("REKAP ABSENSI BULANAN", pageWidth / 2, 22, { align: "center" })
+      doc.setFontSize(9)
+      doc.text(`Gaji ${monthLabel} • Periode Absensi ${periodLabel}`, pageWidth / 2, 28, { align: "center" })
+
+      autoTable(doc, {
+        startY: 34,
+        head: [["Pegawai", "Posisi", "Hadir", "Telat (hari)", "Potongan Telat", "Alpha (hari)", "Potongan Alpha", "Cuti (hari)", "Potongan Cuti", "Total Potongan"]],
+        body: rows.map((r) => [
+          r.name, r.position, `${r.presentDays}/${r.workingDays}`, r.lateDays, fmt(r.lateDeduction),
+          r.alphaDays, fmt(r.alphaDeduction), r.leaveDays, fmt(r.leaveDeduction), fmt(r.totalDeduction),
+        ]),
+        theme: "grid",
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
+        columnStyles: { 4: { halign: "right" }, 6: { halign: "right" }, 8: { halign: "right" }, 9: { halign: "right" } },
+      })
+
+      // One detail page per employee: daily masuk/keluar + blank columns for
+      // hand-written lembur (overtime) hours and extra deduction notes.
+      rows.forEach((r) => {
+        doc.addPage()
+        doc.setFontSize(13)
+        doc.setFont("helvetica", "bold")
+        doc.text(`Detail Harian — ${r.name}`, 14, 15)
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "normal")
+        doc.text(`${r.position} • Periode ${periodLabel}`, 14, 21)
+
+        autoTable(doc, {
+          startY: 26,
+          head: [["Tanggal", "Masuk", "Keluar", "Status", "Keterangan", "Lembur (Jam)", "Potongan Tambahan (Rp)"]],
+          body: r.dailyLogs.map((d) => [
+            d.dayLabel, d.clockIn || "-", d.clockOut || "-", STATUS_LABELS[d.status] || d.status, d.note || "", "", "",
+          ]),
+          theme: "grid",
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
+          columnStyles: { 5: { cellWidth: 30 }, 6: { cellWidth: 40 } },
+        })
+
+        const finalY = (doc as any).lastAutoTable.finalY + 15
+        doc.setFontSize(9)
+        doc.text("Diisi oleh (Admin/HR):", 14, finalY)
+        doc.text("Diperiksa oleh:", 110, finalY)
+        doc.text("_______________________", 14, finalY + 15)
+        doc.text("_______________________", 110, finalY + 15)
+      })
+
+      doc.save(`Rekap_Absensi_${(selectedCompany?.name || "").replace(/\s+/g, "_")}_${month}.pdf`)
+    } finally {
+      setIsPrinting(false)
+    }
+  }
   // PT Wira Karya Sinergi uses a fixed-tariff SK formula instead of the generic rate.
   const usesWksTariff = selectedCompany?.id === "279bfb86-1b29-4b69-8e7c-5c9ac51a0c7e"
 
@@ -106,6 +182,15 @@ export default function AttendanceRecapPage() {
           >
             {isExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileDown className="h-5 w-5" />}
             Export Excel
+          </Button>
+          <Button
+            onClick={handlePrintPDF}
+            disabled={isPrinting || isFetching || rows.length === 0}
+            variant="outline"
+            className="h-14 px-6 rounded-2xl border-border font-bold gap-2"
+          >
+            {isPrinting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />}
+            Cetak PDF
           </Button>
           <a
             href="/payroll"
