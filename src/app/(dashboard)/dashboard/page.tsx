@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Clock, Calendar, TrendingUp, ArrowUpRight, Loader2 } from "lucide-react"
+import { Users, Clock, Calendar, TrendingUp, ArrowUpRight, Loader2, Sunrise, Medal } from "lucide-react"
 import { getDashboardStats } from "@/app/actions/dashboard"
+import { getMorningStars, type MorningStar } from "@/app/actions/employee-recognition"
 import { useCompany } from "@/context/CompanyContext"
 
 interface DashboardStats {
@@ -56,6 +57,8 @@ export default function DashboardPage() {
   const { selectedCompany } = useCompany()
   const [stats, setStats] = React.useState<DashboardStats>(EMPTY)
   const [isLoading, setIsLoading] = React.useState(true)
+  const [morningStars, setMorningStars] = React.useState<MorningStar[]>([])
+  const [isLoadingStars, setIsLoadingStars] = React.useState(true)
 
   React.useEffect(() => {
     let active = true
@@ -67,6 +70,19 @@ export default function DashboardPage() {
         setStats(res.data as DashboardStats)
       }
       if (active) setIsLoading(false)
+    }
+    load()
+    return () => { active = false }
+  }, [selectedCompany])
+
+  React.useEffect(() => {
+    let active = true
+    async function load() {
+      if (!selectedCompany) return
+      setIsLoadingStars(true)
+      const res = await getMorningStars(selectedCompany.id, 2)
+      if (active) setMorningStars(res.success ? res.data : [])
+      if (active) setIsLoadingStars(false)
     }
     load()
     return () => { active = false }
@@ -237,6 +253,51 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-card border-border shadow-xl p-4">
+        <CardHeader className="pb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-amber-500/10 rounded-2xl text-amber-500 shadow-sm">
+              <Sunrise className="h-6 w-6 stroke-[2.5]" />
+            </div>
+            <div>
+              <CardTitle className="text-foreground text-xl font-bold tracking-[0.15em] uppercase">Pegawai Teladan</CardTitle>
+              <p className="text-sm text-muted-foreground font-medium mt-1">Paling konsisten datang pagi tiap bulan</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoadingStars ? (
+            <div className="h-40 flex items-center justify-center">
+              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+            </div>
+          ) : morningStars.length === 0 ? (
+            <div className="h-40 flex items-center justify-center text-muted-foreground font-bold uppercase tracking-widest text-xs text-center px-6">
+              Belum cukup data (minimal 2 bulan absensi) untuk menilai konsistensi.
+            </div>
+          ) : (
+            <div className="grid gap-5 md:grid-cols-2">
+              {morningStars.map((s, i) => (
+                <div key={s.employeeId} className="flex items-center gap-5 p-6 rounded-3xl bg-accent/30 hover:bg-accent/50 transition-all duration-300 border border-transparent hover:border-border shadow-sm group">
+                  <div className={`shrink-0 h-12 w-12 rounded-2xl flex items-center justify-center font-bold text-lg shadow-sm ${i === 0 ? "bg-amber-500/15 text-amber-500" : "bg-slate-400/15 text-slate-400"}`}>
+                    <Medal className="h-6 w-6" />
+                  </div>
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <span className="text-xl font-bold text-foreground group-hover:text-primary transition-colors truncate">{s.name}</span>
+                    <span className="text-sm text-muted-foreground font-bold tracking-wide truncate">{s.position}</span>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-lg font-bold text-foreground">{s.avgClockIn} <span className="text-xs text-muted-foreground font-medium">WIB</span></span>
+                    <span className="text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-[0.15em] border bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                      {s.onTimeRate}% tepat waktu • {s.months} bln
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
