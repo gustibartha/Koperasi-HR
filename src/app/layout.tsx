@@ -15,11 +15,11 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Koperasi Wira Karyawan",
   description: "Sistem HR & Koperasi Digital Terintegrasi",
-  icons: { icon: "/logo-kowika.png", shortcut: "/logo-kowika.png", apple: "/logo-kowika.png" },
+  icons: { icon: "/logo-kowika.png?v=2", shortcut: "/logo-kowika.png?v=2", apple: "/logo-kowika.png?v=2" },
   openGraph: {
     title: "Koperasi Wira Karyawan",
     description: "Sistem HR & Koperasi Digital Terintegrasi",
-    images: ["/logo-kowika.png"],
+    images: ["/logo-kowika.png?v=2"],
   },
 };
 
