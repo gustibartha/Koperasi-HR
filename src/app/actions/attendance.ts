@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { attendances, employees } from "@/db/schema";
+import { attendances, employees, leaves } from "@/db/schema";
 import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -97,6 +97,53 @@ export async function getAllAttendances(companyId?: string) {
     return { success: true, data };
   } catch (error) {
     return { success: false, message: "Gagal mengambil semua data kehadiran", error };
+  }
+}
+
+// Lightweight status for the attendance reminder: has this employee clocked
+// in/out today (WIB), or are they on approved leave today?
+export async function getTodayAttendanceStatus(employeeId: string) {
+  try {
+    const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+    const wibNow = new Date(Date.now() + WIB_OFFSET_MS);
+    const startOfToday = new Date(
+      Date.UTC(wibNow.getUTCFullYear(), wibNow.getUTCMonth(), wibNow.getUTCDate()) - WIB_OFFSET_MS
+    );
+    const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+
+    const [todays, onLeave] = await Promise.all([
+      db
+        .select({ clockOut: attendances.clockOut })
+        .from(attendances)
+        .where(
+          and(
+            eq(attendances.employeeId, employeeId),
+            gte(attendances.clockIn, startOfToday),
+            lte(attendances.clockIn, endOfToday)
+          )
+        ),
+      db
+        .select({ id: leaves.id })
+        .from(leaves)
+        .where(
+          and(
+            eq(leaves.employeeId, employeeId),
+            eq(leaves.status, "disetujui"),
+            lte(leaves.startDate, endOfToday),
+            gte(leaves.endDate, startOfToday)
+          )
+        )
+        .limit(1),
+    ]);
+
+    return {
+      success: true,
+      clockedIn: todays.length > 0,
+      clockedOut: todays.some((a) => !!a.clockOut),
+      onLeave: onLeave.length > 0,
+    };
+  } catch (error) {
+    return { success: false, clockedIn: false, clockedOut: false, onLeave: false };
   }
 }
 

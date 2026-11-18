@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation"
 import { AppSidebar } from "@/components/layout/sidebar"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { AttendanceReminder } from "@/components/AttendanceReminder"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -64,6 +65,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider className="bg-background">
       <AppSidebar />
+      <AttendanceReminder />
       <SidebarInset className="bg-background">
         <header className="flex h-20 shrink-0 items-center gap-4 border-b border-border px-4 md:px-8 sticky top-0 z-50 bg-background/60 backdrop-blur-xl">
           <SidebarTrigger className="-ml-2 text-muted-foreground hover:text-primary transition-colors scale-110" />
